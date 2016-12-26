@@ -14,7 +14,7 @@ function ACF_SimBulletFlight( Bullet, Index )
 	local Time = CurTime()
 	local DeltaTime = Time - Bullet.LastThink
 	
-	local Drag = Bullet.SimFlight:GetNormalized() * (Bullet.DragCoef * Bullet.SimFlight:Length()^2)/ACF.DragDiv
+	local Drag = Bullet.SimFlight:GetNormalized() * (Bullet.DragCoef * Bullet.SimFlight:LengthSqr())/ACF.DragDiv
 	--print(Drag)
 
 	Bullet.SimPos = Bullet.SimPos + (Bullet.SimFlight * ACF.VelScale * DeltaTime)		--Calculates the next shell position

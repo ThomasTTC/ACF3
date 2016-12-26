@@ -78,4 +78,3 @@ ACF_defineGun("50mmAC", {
 		propweight = 1.2
 	}
 } )
-	

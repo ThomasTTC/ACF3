@@ -1,6 +1,5 @@
    
 function EFFECT:Init( data )
-
 	self.Index = data:GetAttachment()
 	self:SetModel("models/munitions/round_100mm_shot.mdl") 
 	

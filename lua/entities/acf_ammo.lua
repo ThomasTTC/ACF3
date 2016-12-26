@@ -157,14 +157,14 @@ function ENT:ACF_Activate( Recalc )
 	self.ACF = self.ACF or {} 
 	
 	local PhysObj = self:GetPhysicsObject()
-	if not self.ACF.Aera then
-		self.ACF.Aera = PhysObj:GetSurfaceArea() * 6.45
+	if not self.ACF.Area then
+		self.ACF.Area = PhysObj:GetSurfaceArea() * 6.45
 	end
 	if not self.ACF.Volume then
 		self.ACF.Volume = PhysObj:GetVolume() * 16.38
 	end
 	
-	local Armour = EmptyMass*1000 / self.ACF.Aera / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
+	local Armour = EmptyMass*1000 / self.ACF.Area / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
 	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop aera gone 
 	local Percent = 1 
 	
@@ -183,10 +183,10 @@ function ENT:ACF_Activate( Recalc )
 	
 end
 
-function ENT:ACF_OnDamage( Entity, Energy, FrAera, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
+function ENT:ACF_OnDamage( Entity, Energy, FrArea, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
 
 	local Mul = ((Type == "HEAT" and ACF.HEATMulAmmo) or 1) --Heat penetrators deal bonus damage to ammo
-	local HitRes = ACF_PropDamage( Entity, Energy, FrAera * Mul, Angle, Inflictor )	--Calling the standard damage prop function
+	local HitRes = ACF_PropDamage( Entity, Energy, FrArea * Mul, Angle, Inflictor )	--Calling the standard damage prop function
 	
 	if self.Exploding or not self.IsExplosive then return HitRes end
 	
@@ -305,22 +305,21 @@ end
 
 function ENT:UpdateOverlayText()
 	
-	local roundType = self.RoundType
+	local roundType = (self.BulletData.Tracer and self.BulletData.Tracer > 0) and self.RoundType .. "-T" or self.RoundType
 	
-	if self.BulletData.Tracer and self.BulletData.Tracer > 0 then 
-		roundType = roundType .. "-T"
-	end
 	
-	local text = roundType .. " - " .. self.Ammo .. " / " .. self.Capacity
-	--text = text .. "\nRound Type: " .. self.RoundType
+	local Text = roundType .. " - " .. self.Ammo .. " / " .. self.Capacity
+	--Text = Text .. "\nRound Type: " .. self.RoundType
 	
 	local RoundData = ACF.RoundTypes[ self.RoundType ]
 	
 	if RoundData and RoundData.cratetxt then
-		text = text .. "\n" .. RoundData.cratetxt( self.BulletData, self )
+		Text = Text .. "\n" .. RoundData.cratetxt( self.BulletData, self )
 	end
+
+	Text = Text .. "\n Reload multiplier: x".. math.Round(1/self.RoFMul, 2)
 	
-	self:SetOverlayText( text )
+	self:SetOverlayText( Text )
 	
 end
 
@@ -358,14 +357,14 @@ function ENT:CreateAmmo(Id, Data1, Data2, Data3, Data4, Data5, Data6, Data7, Dat
 	self.ConvertData = ACF.RoundTypes[self.RoundType].convert
 	self.BulletData = self:ConvertData( PlayerData )
 	
-	local Size = (self:OBBMaxs() - self:OBBMins())
+	local Size = self:OBBMaxs() - self:OBBMins()
 	local Efficiency = 0.11 * ACF.AmmoMod			--This is the part of space that's actually useful, the rest is wasted on interround gaps, loading systems ..
 	local vol = math.floor(Size.x * Size.y * Size.z)
 	self.Volume = vol*Efficiency	
 	local CapMul = (vol > 46000) and ((math.log(vol*0.00066)/math.log(2)-4)*0.125+1) or 1
 	self.Capacity = math.floor(CapMul*self.Volume*16.38/self.BulletData.RoundVolume)
 	self.Caliber = GunData.caliber
-	self.RoFMul = (vol > 46000) and (1-(math.log(vol*0.00066)/math.log(2)-4)*0.05) or 1 --*0.0625 for 25% @ 4x8x8, 0.025 10%, 0.0375 15%, 0.05 20%
+	self.RoFMul = (vol > 46000) and (1-(math.log(vol*0.00066)/math.log(2)-4)*0.125) or 1 --*0.0625 for 25% @ 4x8x8, 0.025 10%, 0.0375 15%, 0.05 20%
 	
 	self:SetNWString( "Ammo", self.Ammo )
 	self:SetNWString( "WireName", GunData.name .. " Ammo" )
@@ -438,14 +437,8 @@ function ENT:Think()
 	
 	local color = self:GetColor()
 	self:SetNWVector("TracerColour", Vector( color.r, color.g, color.b ) )
-	
-	local cvarGrav = GetConVar("sv_gravity")
-	local vec = Vector(0,0,cvarGrav:GetInt()*-1)
-	if( self.sitp_inspace ) then
-		vec = Vector(0, 0, 0)
-	end
 		
-	self:SetNWVector("Accel", vec)
+	self:SetNWVector("Accel", Vector(0, 0, GetConVar("sv_gravity"):GetInt()*-1))
 		
 	self:NextThink( CurTime() +  1 )
 	
