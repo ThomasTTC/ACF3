@@ -105,7 +105,7 @@ __e2setcost( 5 )
 --returns 1 if hitpos is on a clipped part of prop
 e2function number entity:acfHitClip( vector hitpos )
 	if not isOwner(self, this) then return 0 end
-	if ACF_CheckClips(nil, nil, this, hitpos) then return 1 else return 0 end
+	if ACF_CheckClips(this, hitpos) then return 1 else return 0 end
 end
 
 __e2setcost( 1 )

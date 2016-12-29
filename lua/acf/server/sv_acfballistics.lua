@@ -34,7 +34,7 @@ function ACF_CreateBullet( BulletData )
 end
 
 
-local function ACF_ManageBullets()
+function ACF_ManageBullets()
 	for Index, Bullet in pairs(Bullets) do
 		ACF_CalcBulletFlight( Index, Bullet )			--This is the bullet entry in the table, the Index var omnipresent refers to this
 	end
@@ -51,7 +51,7 @@ function ACF_RemoveBullet(Index)
 end
 
 
-local function ACF_CheckClips(Ent, HitPos)
+function ACF_CheckClips(Ent, HitPos)
 	if not Ent.ClipData or Ent:GetClass() ~= "prop_physics" then return false end
 	
 	local Data = Ent.ClipData
@@ -66,8 +66,8 @@ local function ACF_CheckClips(Ent, HitPos)
 end
 
 
-function ACF_Trace()
-	local TraceRes = util_TraceLine(FlightTr)
+function ACF_Trace(Table)
+	local TraceRes = util_TraceLine(Table or FlightTr)
 	
 	if TraceRes.HitNonWorld and ( not ACF_Check(TraceRes.Entity) or ACF_CheckClips(TraceRes.Entity, TraceRes.HitPos) ) then
 		FlightTr.filter[#FlightTr.filter + 1] = TraceRes.Entity
@@ -81,6 +81,7 @@ end
 
 function ACF_CalcBulletFlight(Index, Bullet, Override)	
 	local Drag = Bullet.Flight:GetNormalized() * Bullet.DragCoef * Bullet.Flight:LengthSqr() / DragDiv
+	
 	Bullet.Step = Bullet.Flight * DeltaTime
 	Bullet.NextPos = Bullet.Pos + Bullet.Step	--Calculates the next shell position
 	Bullet.Flight = Bullet.Flight + (Bullet.Accel - Drag) * DeltaTime				--Calculates the next shell vector
@@ -95,14 +96,21 @@ function ACF_DoBulletsFlight(Index, Bullet)
 		if not util_IsInWorld(Bullet.Pos) then
 			ACF_RemoveBullet( Index )
 		else
-			Bullet.Pos = LerpVector(math_Random(), Bullet.Pos, Bullet.NextPos)
+				FlightTr.start  = Bullet.Pos -- Bullet.Step * 0.5
+				FlightTr.endpos = Bullet.NextPos
+				FlightTr.filter = Bullet.Filter
+			local FlightRes = ACF_Trace()
+
+			Bullet.Pos = LerpVector(math_Random(), Bullet.Pos, FlightRes.HitPos)
 
 			--if Bullet.OnEndFlight then Bullet.OnEndFlight(Index, Bullet, FlightRes) end
 			
 			ACF_BulletClient( Index, Bullet, "Update" , 1 , Bullet.Pos  )
 			ACF_BulletEndFlight = ACF.RoundTypes[Bullet.Type]["endflight"]
-			ACF_BulletEndFlight( Index, Bullet, Bullet.Pos, Bullet.Flight:GetNormalized() )	
+			ACF_BulletEndFlight( Index, Bullet, Bullet.Pos, Bullet.Flight:GetNormalized() )
 		end
+
+		return
 	end
 	
 	if Bullet.SkyLvL then
