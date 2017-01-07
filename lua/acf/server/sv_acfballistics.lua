@@ -12,6 +12,7 @@ local util_TraceLine	= util.TraceLine
 local math_Random		= math.random
 local util_IsInWorld	= util.IsInWorld
 local util_Effect		= util.Effect
+local table_Copy		= table.Copy
 --local hook_Run = hook.Run, 109
 local math_Round		= math.Round
 local Alternate
@@ -26,7 +27,7 @@ function ACF_CreateBullet( BulletData )
 	BulletData["DetTime"]		= BulletData.FuzeTime and CurTime() + BulletData.FuzeTime or nil
 	BulletData["Filter"] 		= BulletData["Gun"] and { BulletData["Gun"] } or {}
 		
-	Bullets[Index] = BulletData		--Place the bullet at the current index pos
+	Bullets[Index] = table_Copy(BulletData)		--Place the bullet at the current index pos
 	ACF_BulletClient( Index, Bullets[Index], "Init" , 0 )
 	ACF_CalcBulletFlight( Index, Bullets[Index] )
 
