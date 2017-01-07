@@ -1,5 +1,4 @@
 ACF.BulletEffect = {}
-local DeltaTime = engine.TickInterval()
 
 function ACF_ManageBulletEffects()
 	
@@ -11,8 +10,11 @@ end
 hook.Add("Tick", "ACF_ManageBulletEffects", ACF_ManageBulletEffects)
 
 function ACF_SimBulletFlight( Bullet, Index )
+
+	local Time = CurTime()
+	local DeltaTime = Time - Bullet.LastThink
 	
-	local Drag = Bullet.SimFlight:GetNormalized() * Bullet.DragCoef * Bullet.SimFlight:LengthSqr() / ACF.DragDiv
+	local Drag = Bullet.SimFlight:GetNormalized() * (Bullet.DragCoef * Bullet.SimFlight:LengthSqr()) / ACF.DragDiv
 	--print(Drag)
 
 	Bullet.SimPos = Bullet.SimPos + (Bullet.SimFlight * ACF.VelScale * DeltaTime)		--Calculates the next shell position
@@ -21,4 +23,6 @@ function ACF_SimBulletFlight( Bullet, Index )
 	if Bullet and IsValid(Bullet.Effect) then
 		Bullet.Effect:ApplyMovement( Bullet )
 	end
+	Bullet.LastThink = Time
+	
 end
