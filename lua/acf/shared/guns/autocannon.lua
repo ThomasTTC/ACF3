@@ -79,4 +79,22 @@ ACF_defineGun("50mmAC", {
 		propweight = 1.2
 	}
 } )
+
+
+ACF_defineGun("666mmAC", {
+	name = "666mm Autocannon",
+	desc = "The Destroyer",
+	model = "models/autocannon/autocannon_50mm.mdl",
+	gunclass = "AC",
+	caliber = 5.0,
+	weight = 1488,
+	year = 1488,
+	rofmod = 0.05,
+	magsize = 666,
+	magreload = 0.1,
+	round = {
+		maxlength = 52,
+		propweight = 1.2
+	}
+} )
 	

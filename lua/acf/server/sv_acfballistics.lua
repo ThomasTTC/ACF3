@@ -1,12 +1,13 @@
 ACF.Bullet = {}
 ACF.CurBulletIndex = 0
 ACF.BulletIndexLimit = 1000
+ACF.DeltaTime = engine.TickInterval()
 local IndexLimit 	= ACF.BulletIndexLimit
 local Bullets 		= ACF.Bullet
 local DragDiv 		= ACF.DragDiv
 local FlightTr		= {mask = MASK_SHOT}
 local Gravity 		= Vector(0, 0, GetConVar("sv_gravity"):GetInt()*-1)
-local DeltaTime		= engine.TickInterval()
+local DeltaTime		= ACF.DeltaTime
 
 local util_TraceLine	= util.TraceLine
 local math_Random		= math.random
@@ -138,7 +139,7 @@ function ACF_DoBulletsFlight(Index, Bullet)
 	end
 
 		FlightTr.start  = Bullet.Pos -- Bullet.Step * 0.5
-		FlightTr.endpos = Bullet.NextPos + Bullet.Step
+		FlightTr.endpos = Bullet.NextPos + Bullet.Step * 2
 		FlightTr.filter = Bullet.Filter
 	local FlightRes = ACF_Trace()
 
@@ -147,7 +148,7 @@ function ACF_DoBulletsFlight(Index, Bullet)
 		if not FlightRes.StartSolid and not FlightRes.HitNoDraw then Bullet.SkipNextHit = nil end
 		Bullet.Pos = Bullet.NextPos
 
-	elseif FlightRes.Hit and FlightRes.Fraction <= 0.5 then
+	elseif FlightRes.Hit and FlightRes.Fraction <= 0.3334 then
 		debugoverlay.Line( FlightTr.start, FlightRes.HitPos, 20, Color(255, 255, 0), false )
 		debugoverlay.Line( FlightRes.HitPos, FlightTr.endpos, 20, Color(255, 0, 0), false)
 
