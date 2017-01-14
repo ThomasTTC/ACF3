@@ -84,7 +84,7 @@ function ACF_HE( Hitpos , HitNormal , FillerMass, FragMass , Inflictor, NoOcc, A
 							Table.Vec = (Tar:GetPos() - Hitpos):GetNormal()
 							local Sphere = math.max(4 * 3.1415 * (Table.Dist*2.54 )^2,1) --Surface Area of the sphere at the range of that prop
 							local AreaAdjusted = Tar.ACF.Area
-							Table.Area = math.min(AreaAdjusted/Sphere,0.5)*MaxSphere --Project the aera of the prop to the aera of the shadow it projects at the explosion max radius
+							Table.Area = math.min(AreaAdjusted/Sphere,0.5)*MaxSphere --Project the area of the prop to the area of the shadow it projects at the explosion max radius
 						table.insert(Damage, Table)	--Add it to the Damage table so we know to damage it once we tallied everything
 						TotalArea = TotalArea + Table.Area
 					end
@@ -322,10 +322,19 @@ function ACF_KEShove(Target, Pos, Vec, KE )
 	local CanDo = hook.Run("ACF_KEShove", Target, Pos, Vec, KE )
 	if CanDo == false then return end
 	
-	local parent = ACF_GetAncestor(Target)
-	local phys = parent:GetPhysicsObject()
-
-	if (phys:IsValid()) then
+	local phys = Target:GetPhysicsObject()
+	local parent = Target:GetParent()
+	local depth = 0
+	
+	if IsValid(parent) then
+		while IsValid(parent:GetParent()) and depth<5 do
+			depth = depth + 1
+			parent = parent:GetParent()
+		end
+		phys = parent:GetPhysicsObject()
+	end
+	
+	if IsValid(phys) then
 		if(!Target.acflastupdatemass) or ((Target.acflastupdatemass + 10) < CurTime()) then
 			ACF_CalcMassRatio(Target)
 		end
@@ -350,13 +359,22 @@ function ACF_HEKill( Entity , HitVector , Energy )
 	--print("ACF_HEKill ent: ".. Entity:GetModel() or "unknown")
 	--print("ACF_HEKill Energy "..Energy or "nill")
 	
+	local obj = Entity:GetPhysicsObject()
+	local grav = true
+	local mass = nil
+	if IsValid(obj) and ISSITP then
+		grav = obj:IsGravityEnabled()
+		mass = obj:GetMass()
+	end
 	constraint.RemoveAll( Entity )
+	
+	local entClass = Entity:GetClass()
+	
 	Entity:Remove()
-
-	local mass = Entity:GetPhysicsObject()
-		mass = mass and mass:GetMass() or nil
-
-	if Entity:BoundingRadius() < ACF.DebrisScale then return nil end
+	
+	if(Entity:BoundingRadius() < ACF.DebrisScale) then
+		return nil
+	end
 	
 	local Debris = ents.Create( "Debris" )
 		Debris:SetModel( Entity:GetModel() )
@@ -365,14 +383,19 @@ function ACF_HEKill( Entity , HitVector , Energy )
 		Debris:SetMaterial("models/props_wasteland/metal_tram001a")
 		Debris:Spawn()
 		
-		if ACF.IgniteDebris[Entity:GetClass()] then Debris:Ignite(60,0) end
+		if ACF.IgniteDebris[entClass] then
+			Debris:Ignite(60,0)
+		end
 		
 		Debris:Activate()
 
 	local phys = Debris:GetPhysicsObject() 
 	if IsValid(phys) then
 		phys:ApplyForceOffset( HitVector:GetNormal() * Energy * 350 , Debris:GetPos()+VectorRand()*20 ) 	
-		if mass then phys:SetMass(mass) end
+		phys:EnableGravity( grav )
+		if(mass != nil) then
+			phys:SetMass(mass)
+		end
 	end
 
 	return Debris
@@ -383,11 +406,10 @@ function ACF_APKill( Entity , HitVector , Power )
 
 	constraint.RemoveAll( Entity )
 	Entity:Remove()
-
-	local mass = Entity:GetPhysicsObject()
-		mass = mass and mass:GetMass() or nil
-
-	if Entity:BoundingRadius() < ACF.DebrisScale then return nil end
+	
+	if(Entity:BoundingRadius() < ACF.DebrisScale) then
+		return nil
+	end
 
 	local Debris = ents.Create( "Debris" )
 		Debris:SetModel( Entity:GetModel() )
@@ -406,7 +428,6 @@ function ACF_APKill( Entity , HitVector , Power )
 	local phys = Debris:GetPhysicsObject() 
 	if IsValid(phys) then	
 		phys:ApplyForceOffset( HitVector:GetNormal() * Power * 350 ,  Debris:GetPos()+VectorRand()*20 )	
-		if mass then phys:SetMass(mass) end
 	end
 
 	return Debris
