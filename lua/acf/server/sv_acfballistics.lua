@@ -84,8 +84,7 @@ end
 function ACF_CalcBulletFlight(Index, Bullet, Override)	
 	local Drag = Bullet.Flight:GetNormalized() * Bullet.DragCoef * Bullet.Flight:LengthSqr() / DragDiv
 	
-	Bullet.Step = Bullet.Flight * DeltaTime
-	Bullet.NextPos = Bullet.Pos + Bullet.Step	--Calculates the next shell position
+	Bullet.NextPos = Bullet.Pos + Bullet.Flight * DeltaTime	--Calculates the next shell position
 	Bullet.Flight = Bullet.Flight + (Bullet.Accel - Drag) * DeltaTime				--Calculates the next shell vector
 	
 	ACF_DoBulletsFlight( Index, Bullet )
@@ -98,7 +97,7 @@ function ACF_DoBulletsFlight(Index, Bullet)
 		if not util_IsInWorld(Bullet.Pos) then
 			ACF_RemoveBullet( Index )
 		else
-				FlightTr.start  = Bullet.Pos -- Bullet.Step * 0.5
+				FlightTr.start  = Bullet.Pos
 				FlightTr.endpos = Bullet.NextPos
 				FlightTr.filter = Bullet.Filter
 			local FlightRes = ACF_Trace()
@@ -138,8 +137,8 @@ function ACF_DoBulletsFlight(Index, Bullet)
 		end
 	end
 
-		FlightTr.start  = Bullet.Pos -- Bullet.Step * 0.5
-		FlightTr.endpos = Bullet.NextPos + Bullet.Step * 2
+		FlightTr.start  = Bullet.Pos
+		FlightTr.endpos = Bullet.NextPos
 		FlightTr.filter = Bullet.Filter
 	local FlightRes = ACF_Trace()
 
@@ -148,7 +147,7 @@ function ACF_DoBulletsFlight(Index, Bullet)
 		if not FlightRes.StartSolid and not FlightRes.HitNoDraw then Bullet.SkipNextHit = nil end
 		Bullet.Pos = Bullet.NextPos
 
-	elseif FlightRes.Hit and FlightRes.Fraction <= 0.3334 then
+	elseif FlightRes.Hit then
 		debugoverlay.Line( FlightTr.start, FlightRes.HitPos, 20, Color(255, 255, 0), false )
 		debugoverlay.Line( FlightRes.HitPos, FlightTr.endpos, 20, Color(255, 0, 0), false)
 

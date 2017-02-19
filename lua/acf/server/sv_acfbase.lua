@@ -219,6 +219,18 @@ function ACF_PropDamage( Entity , Energy , FrArea , Angle , Inflictor , Bone )
 	HitRes.Kill = false
 	if HitRes.Damage >= Entity.ACF.Health then
 		HitRes.Kill = true 
+
+		for K in pairs(Entity:GetChildren()) do
+			for K2 in pairs(K:GetChildren()) do
+				if K2:IsVehicle() and IsValid(K2:GetDriver()) then
+					local Driver = K2:GetDriver()
+					print("Kill")
+					print(Driver, Driver:Health())
+
+					Driver:TakeDamage(Driver:Health() * 1000, Inflictor)
+				end
+			end
+		end
 	else
 		Entity.ACF.Health = Entity.ACF.Health - HitRes.Damage
 		Entity.ACF.Armour = Entity.ACF.MaxArmour * (0.5 + Entity.ACF.Health/Entity.ACF.MaxHealth/2) --Simulating the plate weakening after a hit
@@ -242,11 +254,12 @@ function ACF_VehicleDamage( Entity , Energy , FrArea , Angle , Inflictor , Bone,
 		--if Ammo == true then
 		--	Driver.KilledByAmmo = true
 		--end
-		Driver:TakeDamage( HitRes.Damage*40 , Inflictor, Gun )
+		--Driver:TakeDamage( HitRes.Damage*40 , Inflictor, Gun )
 		--if Ammo == true then
 		--	Driver.KilledByAmmo = false
 		--end
 		
+		ACF_SquishyDamage(Driver, Energy, FrArea, Angle, Inflictor, 0, Gun) -- Damage to pod is dealt directly to chest of occupant
 	end
 
 	HitRes.Kill = false

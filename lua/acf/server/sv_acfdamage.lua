@@ -193,38 +193,38 @@ function ACF_HE( Hitpos , HitNormal , FillerMass, FragMass , Inflictor, NoOcc, A
 end
 
 function ACF_Spall( HitPos , HitVec , HitMask , KE , Caliber , Armour , Inflictor )
-	
-	--if(!ACF.Spalling) then
-	if true then -- Folks say it's black magic and it kills their firstborns. So I had to disable it with more powerful magic.
-		return
-	end
-	local TotalWeight = 3.1416*(Caliber/2)^2 * Armour * 0.00079
-	local Spall = math.max(math.floor(Caliber*ACF.KEtoSpall),2)
-	local SpallWeight = TotalWeight/Spall
-	local SpallVel = (KE*2000/SpallWeight)^0.5/Spall
-	local SpallArea = (SpallWeight/7.8)^0.33 
-	local SpallEnergy = ACF_Kinetic( SpallVel , SpallWeight, 600 )
-	
-	--print(SpallWeight)
-	--print(SpallVel)
-	
-	for i = 1,Spall do
-		local SpallTr = { }
-			SpallTr.start = HitPos
-			SpallTr.endpos = HitPos + (HitVec:GetNormalized()+VectorRand()/2):GetNormalized()*SpallVel
-			SpallTr.filter = HitMask
+	if ACF.Spalling then
+		local TotalWeight = 3.1416 * (Caliber * 0.5)^2 * Armour * 0.9 --0.00079 Why is this so low? Conversion for something?
+		local Spall = math.max(math.floor(Caliber*ACF.KEtoSpall), 2)
+			print("Fragments:", Spall)
+		local SpallWeight = TotalWeight/Spall
+		local SpallVel = (KE*2000/SpallWeight)^0.5/Spall
+		local SpallArea = (SpallWeight * 0.025)^0.33 -- (SpallWeight/7.8)^0.33
+		local SpallEnergy = ACF_Kinetic( SpallVel , SpallWeight, 600 )
+		
+		--print(SpallWeight)
+		--print(SpallVel)
+		
+		for i = 1,Spall do
+			local SpallTr = { }
+				SpallTr.start = HitPos
+				SpallTr.endpos = HitPos + (HitVec:GetNormalized()+VectorRand()/2):GetNormalized() * SpallVel * 50
+				SpallTr.filter = HitMask
 
-			ACF_SpallTrace( HitVec , SpallTr , SpallEnergy , SpallArea , Inflictor )
-	end
 
+				ACF_SpallTrace( HitVec , SpallTr , SpallEnergy , SpallArea , Inflictor )
+		end
+	end
 end
 
 function ACF_SpallTrace( HitVec , SpallTr , SpallEnergy , SpallArea , Inflictor )
-
+	print("Penetration: " .. (SpallEnergy.Penetration / SpallArea) * ACF.KEtoRHA .. "\n" .. "Area: " .. SpallArea)
 	local SpallRes = util.TraceLine(SpallTr)
 	
-	if SpallRes.Hit and ACF_Check( SpallRes.Entity ) then
+	debugoverlay.Line( SpallTr.start, SpallRes.HitPos, 20, Color(255, 0, 255), false)
 	
+	if SpallRes.Hit and ACF_Check( SpallRes.Entity ) then
+
 		local Angle = ACF_GetHitAngle( SpallRes.HitNormal , HitVec )
 		local HitRes = ACF_Damage( SpallRes.Entity , SpallEnergy , SpallArea , Angle , Inflictor, 0 )  --DAMAGE !!
 		if HitRes.Kill then
@@ -361,20 +361,14 @@ function ACF_HEKill( Entity , HitVector , Energy )
 	
 	local obj = Entity:GetPhysicsObject()
 	local grav = true
-	local mass = nil
-	if IsValid(obj) and ISSITP then
-		grav = obj:IsGravityEnabled()
-		mass = obj:GetMass()
-	end
-	constraint.RemoveAll( Entity )
-	
+	local mass = IsValid(obj) and obj:GetMass() or nil
 	local entClass = Entity:GetClass()
-	
+
+	constraint.RemoveAll( Entity )
+
 	Entity:Remove()
 	
-	if(Entity:BoundingRadius() < ACF.DebrisScale) then
-		return nil
-	end
+	if Entity:BoundingRadius() < ACF.DebrisScale then return nil end
 	
 	local Debris = ents.Create( "Debris" )
 		Debris:SetModel( Entity:GetModel() )
@@ -391,11 +385,9 @@ function ACF_HEKill( Entity , HitVector , Energy )
 
 	local phys = Debris:GetPhysicsObject() 
 	if IsValid(phys) then
+		if mass then phys:SetMass(mass) end
+
 		phys:ApplyForceOffset( HitVector:GetNormal() * Energy * 350 , Debris:GetPos()+VectorRand()*20 ) 	
-		phys:EnableGravity( grav )
-		if(mass != nil) then
-			phys:SetMass(mass)
-		end
 	end
 
 	return Debris
@@ -403,13 +395,12 @@ function ACF_HEKill( Entity , HitVector , Energy )
 end
 
 function ACF_APKill( Entity , HitVector , Power )
+	local mass = IsValid(obj) and obj:GetMass() or nil
 
 	constraint.RemoveAll( Entity )
 	Entity:Remove()
 	
-	if(Entity:BoundingRadius() < ACF.DebrisScale) then
-		return nil
-	end
+	if Entity:BoundingRadius() < ACF.DebrisScale then return nil end
 
 	local Debris = ents.Create( "Debris" )
 		Debris:SetModel( Entity:GetModel() )
@@ -426,7 +417,9 @@ function ACF_APKill( Entity , HitVector , Power )
 	util.Effect( "WheelDust", BreakEffect )	
 		
 	local phys = Debris:GetPhysicsObject() 
-	if IsValid(phys) then	
+	if IsValid(phys) then
+		if mass then phys:SetMass(mass) end
+
 		phys:ApplyForceOffset( HitVector:GetNormal() * Power * 350 ,  Debris:GetPos()+VectorRand()*20 )	
 	end
 
@@ -534,8 +527,8 @@ end
 function ACF_GetHitAngle( HitNormal , HitVector )
 	
 	HitVector = HitVector*-1
-	local Angle = math.min(math.deg(math.acos(HitNormal:Dot( HitVector:GetNormal() ) ) ),89.999 )
-	--Msg("Angle : " ..Angle.. "\n")
-	return Angle
+
+	return math.min(57.2958 * math.acos(HitNormal:Dot(HitVector:GetNormal())), 89.999)
 	
 end
+
