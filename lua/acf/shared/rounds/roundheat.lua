@@ -92,7 +92,7 @@ function Round.convert( Crate, PlayerData )
 	Data.DragCoef = ((Data.FrArea/10000)/Data.ProjMass)
 	Data.LimitVel = 100										--Most efficient penetration speed in m/s
 	Data.KETransfert = 0.1									--Kinetic energy transfert to the target for movement purposes
-	Data.Ricochet = 75										--Base ricochet angle
+	Data.Ricochet = 60										--Base ricochet angle
 	
 	Data.Detonated = false
 	Data.NotFirstPen = false
@@ -168,7 +168,8 @@ function Round.detonate( Index, Bullet, HitPos, HitNormal )
 	ACF_HE( HitPos - Bullet.Flight:GetNormalized()*3 , HitNormal , Bullet.BoomFillerMass , Bullet.CasingMass , Bullet.Owner )
 
 	Bullet.Detonated = true
-	Bullet.FuzeTime = 0.005 + 40/((Bullet.Flight + Bullet.Flight:GetNormalized() * Bullet.SlugMV * 39.37):Length()*0.0254)
+	Bullet.InitTime = SysTime()
+	Bullet.FuseLength = 0.005 + 40/((Bullet.Flight + Bullet.Flight:GetNormalized() * Bullet.SlugMV * 39.37):Length()*0.0254)
 	Bullet.Pos = HitPos
 	Bullet.Flight = Bullet.Flight + Bullet.Flight:GetNormalized() * Bullet.SlugMV * 39.37
 	Bullet.DragCoef = Bullet.SlugDragCoef
@@ -178,7 +179,10 @@ function Round.detonate( Index, Bullet, HitPos, HitNormal )
 	Bullet.PenArea = Bullet.SlugPenArea
 	Bullet.Ricochet = Bullet.SlugRicochet
 	
-	Bullet.NextPos = Bullet.Pos + (Bullet.Flight * ACF.VelScale * ACF.DeltaTime)		--Calculates the next shell position
+	local DeltaTime = SysTime() - Bullet.LastThink
+	Bullet.StartTrace = Bullet.Pos - Bullet.Flight:GetNormalized()*math.min(ACF.PhysMaxVel*DeltaTime,Bullet.FlightTime*Bullet.Flight:Length())
+	Bullet.NextPos = Bullet.Pos + (Bullet.Flight * ACF.VelScale * DeltaTime)		--Calculates the next shell position
+	
 end
 
 function Round.propimpact( Index, Bullet, Target, HitNormal, HitPos, Bone )

@@ -8,8 +8,9 @@ function EFFECT:Init( data )
 	self.Origin = data:GetOrigin()
 	self.DirVec = data:GetNormal()
 	self.Colour = data:GetStart()
-	self.Radius = math.min(data:GetRadius()*4,250) --long term smoke hanging around
-	self.Magnitude = math.min(data:GetMagnitude()*4,250) --initial puff density
+	self.Radius = math.min(math.log(1+data:GetRadius())/0.02303,350) --smoke filler (long lasting, slow deploy)
+	self.Magnitude = math.min(math.log(1+data:GetMagnitude())/0.02303,350) --WP filler (fast deploy, short duration)
+	--print(self.Radius.." "..self.Magnitude)
 	self.Emitter = ParticleEmitter( self.Origin )
 	
 	local ImpactTr = { }
@@ -27,9 +28,9 @@ function EFFECT:Init( data )
 	local SmokeColor = self.Colour or Vector(255,255,255)
 	if not Ground.HitWorld then Ground.HitNormal = Vector(0,0,1) end
 	
-	
+	--if adjusting, update display data / crate text in smoke round
 	if self.Magnitude > 0 then
-		self:SmokeFiller( Ground, SmokeColor, self.Magnitude*1.25, 1.0, 10+self.Magnitude/8 ) --quick build and dissipate
+		self:SmokeFiller( Ground, SmokeColor, self.Magnitude*1.25, 1.0, 6+self.Magnitude/10 ) --quick build and dissipate
 	end
 	
 	if self.Radius > 0 then

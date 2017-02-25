@@ -90,11 +90,22 @@ if CLIENT then
 			acfmenupanel.CData.DisplayModel:SetSize(acfmenupanel:GetWide(),acfmenupanel:GetWide())
 			acfmenupanel.CData.DisplayModel.LayoutEntity = function( panel, entity ) end
 		acfmenupanel.CustomDisplay:AddItem( acfmenupanel.CData.DisplayModel )
-		
-		acfmenupanel:CPanelText("ClassDesc", list.Get("ACFClasses").GunClass[Table.gunclass].desc)	
+		local GunClass = list.Get("ACFClasses").GunClass[Table.gunclass]
+		acfmenupanel:CPanelText("ClassDesc", GunClass.desc)	
 		acfmenupanel:CPanelText("GunDesc", Table.desc)
 		acfmenupanel:CPanelText("Caliber", "Caliber : "..(Table.caliber*10).."mm")
 		acfmenupanel:CPanelText("Weight", "Weight : "..Table.weight.."kg")
+		
+		--PrintTable(Table)
+		if not Table.rack then
+			local RoundVolume = 3.1416 * (Table.caliber/2)^2 * Table.round.maxlength
+			local RoF = 60 / (((RoundVolume / 500 ) ^ 0.60 ) * GunClass.rofmod * (Table.rofmod or 1)) --class and per-gun use same var name
+			acfmenupanel:CPanelText("Firerate", "RoF : "..math.Round(RoF,1).." rounds/min")
+			
+			if Table.magsize then
+				acfmenupanel:CPanelText("Magazine", "Magazine : "..Table.magsize.." rounds\nReload :   "..Table.magreload.." s")
+			end
+		end
 		
 		if Table.canparent then
 			acfmenupanel:CPanelText("GunParentable", "\nThis weapon can be parented.")
@@ -167,12 +178,13 @@ function MakeACF_Gun(Owner, Pos, Angle, Id)
 	Gun.Mass = Lookup.weight
 	Gun.Class = Lookup.gunclass
 	Gun.Parentable = Lookup.canparent
-	-- Custom BS for karbine. Per Gun ROF.
-	Gun.PGRoFmod = 1
-	if(Lookup.rofmod) then
-		Gun.PGRoFmod = math.max(0, Lookup.rofmod)
+	if ClassData.color then
+		Gun:SetColor(Color(ClassData.color[1],ClassData.color[2],ClassData.color[3], 255))
 	end
-	-- Custom BS for karbine. Magazine Size, Mag reload Time
+	Gun.PGRoFmod = 1 --per gun rof
+	if(Lookup.rofmod) then
+		Gun.PGRoFmod = math.max(0.01, Lookup.rofmod)
+	end
 	Gun.CurrentShot = 0
 	Gun.MagSize = 1
 	if(Lookup.magsize) then
@@ -184,6 +196,7 @@ function MakeACF_Gun(Owner, Pos, Angle, Id)
 	if(Lookup.magreload) then
 		Gun.MagReload = math.max(Gun.MagReload, Lookup.magreload)
 	end
+	Gun.MinLengthBonus = 0.75 * 3.1416*(Gun.Caliber/2)^2 * Lookup.round.maxlength
 	
 	Gun:SetNWString( "WireName", Lookup.name )
 	Gun:SetNWString( "Class", Gun.Class )
@@ -212,43 +225,6 @@ function MakeACF_Gun(Owner, Pos, Angle, Id)
 			end
 		end)
 	end
-	
-	/*local Height = 30		--Damn you Garry
-	local Width = 30
-	local length = 105
-	local Scale = Gun.Caliber/30
-	local VertexFile = file.Read(Gun.Class..".txt", "DATA")
-	local PerVertex = string.Explode( "v", VertexFile )
-	local Import = {}
-	for Key, Value in pairs(PerVertex) do
-		local Table = string.Explode( " ", Value )
-		local Vec = Vector(tonumber(Table[2],10),tonumber(Table[4],10),tonumber(Table[3],10))
-		if Vec != Vector(1,1,1) then
-			table.insert(Import, Vertex( Vec*Scale,0,0 ) )
-		end
-	end
-	PrintTable(Import)  
-	Gun:SetNWFloat( "Scale", Scale )
-	
-	local p1 = Vector(length/-2*Scale,Width/-2*Scale,Height/-2*Scale)
-	local p2 = Vector(length/-2*Scale,Width/2*Scale,Height/-2*Scale)
-	local p3 = Vector(length/2*Scale,Width/2*Scale,Height/-2*Scale)
-	local p4 = Vector(length/2*Scale,Width/-2*Scale,Height/-2*Scale)
-	local p5 = Vector(length/-2*Scale,Width/-2*Scale,Height/2*Scale)
-	local p6 = Vector(length/-2*Scale,Width/2*Scale,Height/2*Scale)
-	local p7 = Vector(length/2*Scale,Width/2*Scale,Height/2*Scale)
-	local p8 = Vector(length/2*Scale,Width/-2*Scale,Height/2*Scale)
-	
-	local Vertices = {}
-	table.Add( Vertices, MeshQuad( p5, p6, p7, p8, 0 ) )
-	table.Add( Vertices, MeshQuad( p4, p3, p2, p1, 0 ) )
-	table.Add( Vertices, MeshQuad( p8, p7, p3, p4, 0 ) )
-	table.Add( Vertices, MeshQuad( p6, p5, p1, p2, 0 ) )
-	table.Add( Vertices, MeshQuad( p5, p8, p4, p1, 0 ) )
-	table.Add( Vertices, MeshQuad( p7, p6, p2, p3, 0 ) )
-	
-	PrintTable(Vertices) 
-	Gun:PhysicsFromMesh( Import )*/
 
 	local phys = Gun:GetPhysicsObject()  	
 	if IsValid( phys ) then
@@ -293,13 +269,13 @@ function ENT:UpdateOverlayText()
 	--print(self.LastLoadDuration, self.ReloadTime, self.LastLoadDuration > self.ReloadTime, gunStatus)
 	
 	local text = roundType .. " - " .. ammoLeft .. (ammoLeft == 1 and " shot left" or " shots left ( " .. gunStatus .. " )")
-	/*
+	--[[
 	local RoundData = ACF.RoundTypes[ self.BulletData.Type ]
 	
 	if RoundData and RoundData.cratetxt then
 		text = text .. "\n" .. RoundData.cratetxt( self.BulletData )
 	end
-	//*/
+	--]]
 	text = text .. "\nRounds Per Minute: " .. math.Round( self.RateOfFire or 0, 2 )
 	
 	self:SetOverlayText( text )
@@ -344,9 +320,10 @@ function ENT:Link( Target )
 	
 	if self.BulletData.Type == "Empty" and Target.Load then
 		self:UnloadAmmo()
+		--self.Reloading = true
 	end
 	
-	self.ReloadTime = ( ( Target.BulletData.RoundVolume / 500 ) ^ 0.60 ) * self.RoFmod * self.PGRoFmod
+	self.ReloadTime = ( ( math.max(Target.BulletData.RoundVolume,self.MinLengthBonus) / 500 ) ^ 0.60 ) * self.RoFmod * self.PGRoFmod
 	self.RateOfFire = 60 / self.ReloadTime
 	Wire_TriggerOutput( self, "Fire Rate", self.RateOfFire )
 	Wire_TriggerOutput( self, "Muzzle Weight", math.floor( Target.BulletData.ProjMass * 1000 ) )
@@ -536,9 +513,38 @@ function ENT:Think()
 	
 end
 
+function ENT:CheckWeight()
+	local mass = self:GetPhysicsObject():GetMass()
+	local maxmass = GetConVarNumber("bnk_maxweight") * 1000 + 999
+	
+	local chk = false
+	
+	local allents = constraint.GetAllConstrainedEntities( self )
+	for _, ent in pairs(allents) do
+		if (ent and ent:IsValid() and not ent:IsPlayer() and not (ent == self)) then
+			local phys = ent:GetPhysicsObject()
+			if(phys:IsValid()) then
+				mass = mass + phys:GetMass()
+			end
+		end
+	end
+	
+	if( mass < maxmass ) then
+		chk = true
+	end
+	
+	return chk
+end
+
 function ENT:ReloadMag()
-	if self.CurrentShot > 0 and self:IsSolid() and self.Ready and self:GetPhysicsObject():GetMass() >= self.Mass and not (IsValid(self:GetParent()) and not self.Parentable) then
-		if ACF.RoundTypes[self.BulletData.Type] then		--Check if the roundtype loaded actually exists
+	if(self.IsUnderWeight == nil) then
+		self.IsUnderWeight = true
+		if(ISBNK) then
+			self.IsUnderWeight = self:CheckWeight()
+		end
+	end
+	if ( (self.CurrentShot > 0) and self.IsUnderWeight and self:IsSolid() and self.Ready and self:GetPhysicsObject():GetMass() >= self.Mass and not (self:GetParent():IsValid() and not self.Parentable) ) then
+		if ( ACF.RoundTypes[self.BulletData.Type] ) then		--Check if the roundtype loaded actually exists
 			self:LoadAmmo(self.MagReload, false)	
 			self:EmitSound("weapons/357/357_reload4.wav",500,100)
 			self.CurrentShot = 0
@@ -556,7 +562,7 @@ function ENT:GetInaccuracy()
 	local SpreadScale = ACF.SpreadScale
 	local IaccMult = 1
 	
-	if self.ACF.Health and self.ACF.MaxHealth then
+	if (self.ACF.Health and self.ACF.MaxHealth) then
 		IaccMult = math.Clamp(((1 - SpreadScale) / (0.5)) * ((self.ACF.Health/self.ACF.MaxHealth) - 1) + 1, 1, SpreadScale)
 	end
 	
@@ -565,41 +571,29 @@ function ENT:GetInaccuracy()
 	return coneAng
 end
 
-function ENT:BarrelNotStuffed()
-	if self.Stuffed then return false end
-	if not self.CPPIGetOwner then return true end
 
-	local tr = {start = self:GetPos(), endpos = self:LocalToWorld(self.Muzzle), filter = self.BarrelFilter or {self}, mask = MASK_SHOT}
-	local Own = self.Owner
-
-	local TraceRes = util.TraceLine(tr)
-	while TraceRes.Hit do
-		if TraceRes.HitWorld then return false end
-		
-		local Ent = TraceRes.Entity
-		if IsValid(Ent) and not Ent:IsPlayer() and Ent:CPPIGetOwner() ~= Own then
-			self.Stuffed = true
-
-			timer.Simple(0.5, function() self.Stuffed = false end)
-
-			return false
-		end
-
-		tr.filter[#tr.filter + 1] = Ent
-		TraceRes = util.TraceLine(tr)
-	end			
-
-	if not self.BarrelFilter or #self.BarrelFilter ~= #tr.filter then self.BarrelFilter = table.Copy(tr.filter) end
-
-	return true
-end
 
 function ENT:FireShell()
 	
 	local CanDo = hook.Run("ACF_FireShell", self, self.BulletData )
 	if CanDo == false then return end
-
-	if self:IsSolid() and self.Ready and self:GetPhysicsObject():GetMass() >= self.Mass and not (IsValid(self:GetParent()) and not self.Parentable) and self:BarrelNotStuffed() then
+	if(self.IsUnderWeight == nil) then
+		self.IsUnderWeight = true
+		if(ISBNK) then
+			self.IsUnderWeight = self:CheckWeight()
+		end
+	end
+	
+	local bool = true
+	if(ISSITP) then
+		if(self.sitp_spacetype != "space" and self.sitp_spacetype != "planet") then
+			bool = false
+		end
+		if(self.sitp_core == false) then
+			bool = false
+		end
+	end
+	if ( bool and self.IsUnderWeight and self:IsSolid() and self.Ready and self:GetPhysicsObject():GetMass() >= self.Mass and not (self:GetParent():IsValid() and not self.Parentable) ) then
 		Blacklist = {}
 		if not ACF.AmmoBlacklist[self.BulletData.Type] then
 			Blacklist = {}
@@ -619,7 +613,7 @@ function ENT:FireShell()
 			self:MuzzleEffect( MuzzlePos, MuzzleVec )
 			
 			self.BulletData.Pos = MuzzlePos
-			self.BulletData.Flight = ShootVec * self.BulletData.MuzzleVel * 39.37 + ACF_GetAncestor(self):GetVelocity()
+			self.BulletData.Flight = ShootVec * self.BulletData.MuzzleVel * 39.37 + ACF_GetPhysicalParent(self):GetVelocity()
 			self.BulletData.Owner = self.User
 			self.BulletData.Gun = self
 			self.CreateShell = ACF.RoundTypes[self.BulletData.Type].create
@@ -685,15 +679,21 @@ function ENT:LoadAmmo( AddTime, Reload )
 		self.BulletData = AmmoEnt.BulletData
 		self.BulletData.Crate = AmmoEnt:EntIndex()
 		
-		local CrateB = ( self.CrateBonus ~= 0 and self.MagReload == 0 ) and self.CrateBonus or 1
+		local cb = 1
+		if(self.CrateBonus and (self.MagReload == 0)) then
+			cb = self.CrateBonus
+			if (cb == 0) then cb = 1 end
+		end
 		
-		self.ReloadTime = ((self.BulletData.RoundVolume/500)^0.60)*self.RoFmod*self.PGRoFmod * CrateB
+		local Adj = not self.BulletData.LengthAdj and 1 or self.BulletData.LengthAdj --FL firerate bonus adjustment
+		
+		self.ReloadTime = ( ( math.max(self.BulletData.RoundVolume,self.MinLengthBonus*Adj) / 500 ) ^ 0.60 ) * self.RoFmod * self.PGRoFmod * cb
 		Wire_TriggerOutput(self, "Loaded", self.BulletData.Type)
 		
 		self.RateOfFire = (60/self.ReloadTime)
 		Wire_TriggerOutput(self, "Fire Rate", self.RateOfFire)
-		Wire_TriggerOutput(self, "Muzzle Weight", math.Round(self.BulletData.ProjMass*1000, 3) )
-		Wire_TriggerOutput(self, "Muzzle Velocity", math.Round(self.BulletData.MuzzleVel*ACF.VelScale, 3) )
+		Wire_TriggerOutput(self, "Muzzle Weight", math.floor(self.BulletData.ProjMass*1000) )
+		Wire_TriggerOutput(self, "Muzzle Velocity", math.floor(self.BulletData.MuzzleVel*ACF.VelScale) )
 		
 		self.NextFire = curTime + self.ReloadTime
 		local reloadTime = self.ReloadTime

@@ -33,7 +33,7 @@
 - IF YOU ARE HAVING INSTALLATION PROBLEMS, PLEASE POST ON THE FACEPUNCH ACF THREAD, NOT ON GITHUB.
   Please only create an issue on github if you've found a bug, or have a suggestion.  The FP forum thread
   is a good place for general ACF conversation, suggestions, and help requests.
-  Forum thread: http://facepunch.com/showthread.php?t=1244349
+  Forum thread: https://facepunch.com/showthread.php?t=1548397
   
 - If you're into ACF combat, Knight Icy has an excellent extra sound pack for weapons on the GMod workshop.
   Check it out at http://steamcommunity.com/sharedfiles/filedetails/?id=301482990

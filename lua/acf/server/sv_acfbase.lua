@@ -54,7 +54,7 @@ function ACF_Activate ( Entity , Recalc )
 	local Area = Entity.ACF.Area
 	local Ductility = math.Clamp( Entity.ACF.Ductility, -0.8, 0.8 )
 	local Armour = ACF_CalcArmor( Area, Ductility, Entity:GetPhysicsObject():GetMass() ) -- So we get the equivalent thickness of that prop in mm if all its weight was a steel plate
-	local Health = ( Area / ACF.Threshold ) * ( 1 + Ductility ) -- Setting the threshold of the prop aera gone
+	local Health = ( Area / ACF.Threshold ) * ( 1 + Ductility ) -- Setting the threshold of the prop area gone
 	
 	local Percent = 1 
 	
@@ -200,7 +200,7 @@ function ACF_CalcDamage( Entity , Energy , FrArea , Angle )
 	local Armour = Entity.ACF.Armour/math.abs( math.cos(math.rad(Angle)) ) --Calculate Line Of Sight thickness of the armour
 	local Structure = Entity.ACF.Density --Structural strengh of the material, derived from prop density, denser stuff is more vulnerable (Density is different than armour, calculated off real volume)
 	
-	local MaxPenetration = (Energy.Penetration / FrArea) * ACF.KEtoRHA							--Let's see how deep the projectile penetrates ( Energy = Kinetic Energy, FrArea = Frontal aera in cm2 )
+	local MaxPenetration = (Energy.Penetration / FrArea) * ACF.KEtoRHA							--Let's see how deep the projectile penetrates ( Energy = Kinetic Energy, FrArea = Frontal area in cm2 )
 	local Penetration = math.min( MaxPenetration , Armour )			--Clamp penetration to the armour thickness
 	
 	local HitRes = {}
@@ -389,9 +389,6 @@ end
 
 -- for those extra sneaky bastards
 function ACF_GetAllChildren( ent, ResultTable )
-	
-	if not ent.GetChildren then return end
-	
 	local ResultTable = ResultTable or {}
 	
 	if not IsValid( ent ) then return end
@@ -409,12 +406,4 @@ function ACF_GetAllChildren( ent, ResultTable )
 	
 	return ResultTable
 	
-end
-
-function ACF_GetAncestor( Ent )
-	local Parent = Ent
-	
-	while IsValid(Parent:GetParent()) do Parent = Parent:GetParent() end
-	
-	return Parent
 end

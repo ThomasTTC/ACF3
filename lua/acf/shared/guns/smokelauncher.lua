@@ -18,7 +18,7 @@ ACF_defineGun("40mmSL", { --id
 	gunclass = "SL",
 	canparent = true,
 	caliber = 4.0,
-	weight = 25,
+	weight = 5,
 	year = 1941,
 	round = {
 		maxlength = 15,

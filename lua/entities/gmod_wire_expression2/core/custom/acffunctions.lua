@@ -105,7 +105,7 @@ __e2setcost( 5 )
 --returns 1 if hitpos is on a clipped part of prop
 e2function number entity:acfHitClip( vector hitpos )
 	if not isOwner(self, this) then return 0 end
-	if ACF_CheckClips(this, hitpos) then return 1 else return 0 end
+	if ACF_CheckClips(nil, nil, this, hitpos) then return 1 else return 0 end
 end
 
 __e2setcost( 1 )
@@ -240,6 +240,10 @@ e2function number entity:acfUnlinkFrom(entity target, number notify)
     return success and 1 or 0
 end
 
+--returns current acf dragdivisor
+e2function number acfDragDiv()
+	return ACF.DragDiv
+end
 
 -- [ Engine Functions ] --
 
@@ -708,7 +712,7 @@ end
 e2function number entity:acfMuzzleVel()
 	if not (isAmmo(this) or isGun(this)) then return 0 end
 	if restrictInfo(self, this) then return 0 end
-	return math.Round((this["Outputs"]["Muzzle Velocity"]["Value"] or 0)*ACF.VelScale,3)
+	return math.Round((this.BulletData["MuzzleVel"] or 0)*ACF.VelScale,3)
 end
 
 -- Returns the mass of the projectile in a crate or gun
@@ -941,3 +945,5 @@ e2function number entity:acfPeakFuelUse()
 	end
 	return math.Round(Consumption, 3)
 end
+
+

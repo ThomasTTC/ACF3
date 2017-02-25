@@ -1,7 +1,7 @@
 
 AddCSLuaFile()
 
-ACF.AmmoBlacklist.SM = { "MO", "MG", "HW", "C", "GL", "HMG", "AL", "AC", "RAC", "SA", "SC" }
+ACF.AmmoBlacklist.SM = { "MG", "C", "GL", "HMG", "AL", "AC", "RAC", "SA", "SC" }
 
 local Round = {}
 
@@ -28,6 +28,7 @@ function Round.convert( Crate, PlayerData )
 	if not PlayerData.ProjLength then PlayerData.ProjLength = 0 end
 	if not PlayerData.Data5 then PlayerData.Data5 = 0 end
 	if not PlayerData.Data6 then PlayerData.Data6 = 0 end
+	PlayerData.Data7 = tonumber(PlayerData.Data7) or 0  --catching some possible errors with string data in legacy dupes
 	if not PlayerData.Data10 then PlayerData.Data10 = 0 end
 	
 	PlayerData, Data, ServerData, GUIData = ACF_RoundBaseGunpowder( PlayerData, Data, ServerData, GUIData )
@@ -62,8 +63,16 @@ function Round.convert( Crate, PlayerData )
 	Data.KETransfert = 0.1									--Kinetic energy transfert to the target for movement purposes
 	Data.Ricochet = 60										--Base ricochet angle
 	
+	if PlayerData.Data7 < 0.5 then
+		PlayerData.Data7 = 0
+		Data.FuseLength = PlayerData.Data7
+	else
+		PlayerData.Data7 = math.max(math.Round(PlayerData.Data7,1),0.5)
+		Data.FuseLength = PlayerData.Data7
+	end
+	
 	Data.BoomPower = Data.PropMass + Data.FillerMass + Data.WPMass
-
+	
 	if SERVER then --Only the crates need this part
 		ServerData.Id = PlayerData.Id
 		ServerData.Type = PlayerData.Type
@@ -76,18 +85,6 @@ function Round.convert( Crate, PlayerData )
 	end
 	
 end
-
-
-function Round.getDisplayData(Data)
-	local GUIData = {}
-	GUIData.BlastRadius = (Data.FillerMass + Data.WPMass)^0.33*8
-	local FragMass = Data.ProjMass - (Data.FillerMass + Data.WPMass)
-	GUIData.Fragments = math.max(math.floor(((Data.FillerMass + Data.WPMass)/FragMass)*ACF.HEFrag),2)
-	GUIData.FragMass = FragMass/GUIData.Fragments
-	GUIData.FragVel = ((Data.FillerMass + Data.WPMass)*ACF.HEPower*1/GUIData.FragMass/GUIData.Fragments)^0.5
-	return GUIData
-end
-
 
 function Round.network( Crate, BulletData )
 
@@ -104,17 +101,64 @@ function Round.network( Crate, BulletData )
 
 end
 
+function Round.getDisplayData(Data)
+
+	local GUIData = {}
+	
+	GUIData.SMFiller = math.min(math.log(1+Data.FillerMass*8*39.37)/0.02303,350) --smoke filler
+	GUIData.SMLife = math.Round(20+GUIData.SMFiller/4,1)
+	GUIData.SMRadiusMin = math.Round(GUIData.SMFiller*1.25*0.15*0.0254,1)
+	GUIData.SMRadiusMax = math.Round(GUIData.SMFiller*1.25*2*0.0254,1)
+	
+	GUIData.WPFiller = math.min(math.log(1+Data.WPMass*8*39.37)/0.02303,350) --wp filler
+	GUIData.WPLife = math.Round(6+GUIData.WPFiller/10,1)
+	GUIData.WPRadiusMin = math.Round(GUIData.WPFiller*1.25*0.0254,1)
+	GUIData.WPRadiusMax = math.Round(GUIData.WPFiller*1.25*2*0.0254,1)
+	
+	return GUIData
+	
+end
+
 function Round.cratetxt( BulletData )
 	
-	local DData = Round.getDisplayData(BulletData)
+	local GUIData = Round.getDisplayData(BulletData)
 	
-	local str = 
-	{
-		"Muzzle Velocity: ", math.Round(BulletData.MuzzleVel, 1), " m/s\n",
-		"Blast Radius: ", math.Round(DData.BlastRadius, 1), " m\n",
-		"Blast Energy: ", math.floor((BulletData.FillerMass + BulletData.WPMass) * ACF.HEPower), " KJ"
+	local str = {
+		"Muzzle Velocity: ", math.Round(BulletData.MuzzleVel, 1), " m/s"
 	}
 	
+	if GUIData.WPFiller > 0 then
+		local temp = {
+			"\nWP Radius: ", GUIData.WPRadiusMin, " m to ", GUIData.WPRadiusMax, " m\n",
+			"WP Lifetime: ", GUIData.WPLife, " s"
+		}
+		
+		for i=1,#temp do
+			str[#str+1] = temp[i]
+		end
+	end
+
+	if GUIData.SMFiller > 0 then
+		local temp = {
+			"\nSM Radius: ", GUIData.SMRadiusMin, " m to ", GUIData.SMRadiusMax, " m\n",
+			"SM Lifetime: ", GUIData.SMLife, " s"
+		}
+		
+		for i=1,#temp do
+			str[#str+1] = temp[i]
+		end
+	end
+	
+	if BulletData.FuseLength > 0 then
+		local temp = {
+			"\nFuse time: ", BulletData.FuseLength, " s"
+		}
+		
+		for i=1,#temp do
+			str[#str+1] = temp[i]
+		end
+	end
+
 	return table.concat(str)
 	
 end
@@ -208,6 +252,7 @@ function Round.guicreate( Panel, Table )
 	acfmenupanel:AmmoSlider("ProjLength",0,0,1000,3, "Projectile Length", "")	--Slider (Name, Value, Min, Max, Decimals, Title, Desc)
 	acfmenupanel:AmmoSlider("FillerVol",0,0,1000,3, "Smoke Filler", "")			--Slider (Name, Value, Min, Max, Decimals, Title, Desc)
 	acfmenupanel:AmmoSlider("WPVol",0,0,1000,3, "WP Filler", "")			--Slider (Name, Value, Min, Max, Decimals, Title, Desc)
+	acfmenupanel:AmmoSlider("FuseLength",0,0,1000,3, "Timed Fuse", "")
 	
 	acfmenupanel:AmmoCheckbox("Tracer", "Tracer", "")			--Tracer checkbox (Name, Title, Desc)
 	
@@ -228,6 +273,7 @@ function Round.guiupdate( Panel, Table )
 		PlayerData.ProjLength = acfmenupanel.AmmoData.ProjLength	--ProjLength slider
 		PlayerData.Data5 = acfmenupanel.AmmoData.FillerVol
 		PlayerData.Data6 = acfmenupanel.AmmoData.WPVol
+		PlayerData.Data7 = acfmenupanel.AmmoData.FuseLength
 		local Tracer = 0
 		if acfmenupanel.AmmoData.Tracer then Tracer = 1 end
 		PlayerData.Data10 = Tracer				--Tracer
@@ -240,6 +286,7 @@ function Round.guiupdate( Panel, Table )
 	RunConsoleCommand( "acfmenu_data4", Data.ProjLength )		--And Data4 total round mass
 	RunConsoleCommand( "acfmenu_data5", Data.FillerVol )
 	RunConsoleCommand( "acfmenu_data6", Data.WPVol )
+	RunConsoleCommand( "acfmenu_data7", Data.FuseLength )
 	RunConsoleCommand( "acfmenu_data10", Data.Tracer )
 	
 	local vol = ACF.Weapons.Ammo[acfmenupanel.AmmoData["Id"]].volume
@@ -253,6 +300,7 @@ function Round.guiupdate( Panel, Table )
 	acfmenupanel:AmmoSlider("ProjLength",Data.ProjLength,Data.MinProjLength,Data.MaxTotalLength,3, "Projectile Length", "Projectile Mass : "..(math.floor(Data.ProjMass*1000)).." g")	--Projectile Length Slider (Name, Min, Max, Decimals, Title, Desc)
 	acfmenupanel:AmmoSlider("FillerVol",Data.FillerVol,Data.MinFillerVol,Data.MaxFillerVol,3, "Smoke Filler Volume", "Smoke Filler Mass : "..(math.floor(Data.FillerMass*1000)).." g")	--HE Filler Slider (Name, Min, Max, Decimals, Title, Desc)
 	acfmenupanel:AmmoSlider("WPVol",Data.WPVol,Data.MinFillerVol,Data.MaxFillerVol,3, "WP Filler Volume", "WP Filler Mass : "..(math.floor(Data.WPMass*1000)).." g")	--HE Filler Slider (Name, Min, Max, Decimals, Title, Desc)
+	acfmenupanel:AmmoSlider("FuseLength",Data.FuseLength,0,10,1, "Fuse Time", (Data.FuseLength).." s")
 	
 	acfmenupanel:AmmoCheckbox("Tracer", "Tracer : "..(math.floor(Data.Tracer*10)/10).."cm\n", "" )			--Tracer checkbox (Name, Title, Desc)
 

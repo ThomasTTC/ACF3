@@ -388,7 +388,7 @@ function ENT:ACF_Activate()
 	local Area = (Entity.ACF.Area)
 	--local Armour = (Entity:GetPhysicsObject():GetMass()*1000 / Area / 0.78) / (1 + math.Clamp(Entity.ACF.Ductility, -0.8, 0.8))^(1/2)	--So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
 	local Armour = (Entity:GetPhysicsObject():GetMass()*1000 / Area / 0.78) 
-	--local Health = (Area/ACF.Threshold) * (1 + math.Clamp(Entity.ACF.Ductility, -0.8, 0.8))												--Setting the threshold of the prop aera gone
+	--local Health = (Area/ACF.Threshold) * (1 + math.Clamp(Entity.ACF.Ductility, -0.8, 0.8))												--Setting the threshold of the prop area gone
 	local Health = (Area/ACF.Threshold)
 	
 	local Percent = 1 
@@ -450,21 +450,11 @@ function ENT:CheckLegal()
 	-- make sure weight is not below stock
 	if self:GetPhysicsObject():GetMass() < self.Weight then return false end
 	
-	local rootparent = self:GetParent()
-	
 	-- if it's not parented we're fine
-	if not IsValid( rootparent ) then return true end
+	if not IsValid( self:GetParent() ) then return true end
 	
-	--find the root parent
-	local depth = 0
-	while rootparent:GetParent():IsValid() and depth<5 do
-		depth = depth + 1
-		rootparent = rootparent:GetParent()
-	end
-	
-	--if there's still more parents, it's not legal
-	if rootparent:GetParent():IsValid() then return false end
-	
+	local rootparent = ACF_GetPhysicalParent(self)
+
 	--make sure it's welded to root parent
 	for k, v in pairs( constraint.FindConstraints( self, "Weld" ) ) do
 		if v.Ent1 == rootparent or v.Ent2 == rootparent then return true end

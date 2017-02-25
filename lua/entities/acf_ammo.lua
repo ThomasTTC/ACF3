@@ -165,7 +165,7 @@ function ENT:ACF_Activate( Recalc )
 	end
 	
 	local Armour = EmptyMass*1000 / self.ACF.Area / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
-	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop aera gone 
+	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop area gone 
 	local Percent = 1 
 	
 	if Recalc and self.ACF.Health and self.ACF.MaxHealth then
@@ -240,11 +240,9 @@ function MakeACF_Ammo(Owner, Pos, Angle, Id, Data1, Data2, Data3, Data4, Data5, 
 	Ammo.Ammo = Ammo.Capacity
 	Ammo.EmptyMass = ACF.Weapons.Ammo[Ammo.Id].weight
 	Ammo.Mass = Ammo.EmptyMass + Ammo:AmmoMass()
+	Ammo.LastMass = 1
 	
-	local phys = Ammo:GetPhysicsObject()  	
-	if (phys:IsValid()) then 
-		phys:SetMass( Ammo.Mass ) 
-	end
+	Ammo:UpdateMass()
 	
 	Owner:AddCount( "_acf_ammo", Ammo )
 	Owner:AddCleanup( "acfmenu", Ammo )
@@ -295,9 +293,8 @@ function ENT:Update( ArgsTable )
 	self:CreateAmmo(ArgsTable[4], ArgsTable[5], ArgsTable[6], ArgsTable[7], ArgsTable[8], ArgsTable[9], ArgsTable[10], ArgsTable[11], ArgsTable[12], ArgsTable[13], ArgsTable[14])
 	
 	self.Ammo = math.floor(self.Capacity*AmmoPercent)
-	local AmmoMass = self:AmmoMass()
-	self.Mass = math.min(self.EmptyMass, self:GetPhysicsObject():GetMass() - AmmoMass) + AmmoMass*(self.Ammo/math.max(self.Capacity,1)) --min is intentional, cause think to set it appropriately
-	self:GetPhysicsObject():SetMass(self.Mass) 
+	
+	self:UpdateMass()
 	
 	return true, msg
 	
@@ -305,21 +302,22 @@ end
 
 function ENT:UpdateOverlayText()
 	
-	local roundType = (self.BulletData.Tracer and self.BulletData.Tracer > 0) and self.RoundType .. "-T" or self.RoundType
+	local roundType = self.RoundType
 	
+	if self.BulletData.Tracer and self.BulletData.Tracer > 0 then 
+		roundType = roundType .. "-T"
+	end
 	
-	local Text = roundType .. " - " .. self.Ammo .. " / " .. self.Capacity
-	--Text = Text .. "\nRound Type: " .. self.RoundType
+	local text = roundType .. " - " .. self.Ammo .. " / " .. self.Capacity
+	--text = text .. "\nRound Type: " .. self.RoundType
 	
 	local RoundData = ACF.RoundTypes[ self.RoundType ]
 	
 	if RoundData and RoundData.cratetxt then
-		Text = Text .. "\n" .. RoundData.cratetxt( self.BulletData, self )
+		text = text .. "\n" .. RoundData.cratetxt( self.BulletData, self )
 	end
-
-	Text = Text .. "\n Reload multiplier: x".. math.Round(1/self.RoFMul, 2)
 	
-	self:SetOverlayText( Text )
+	self:SetOverlayText( text )
 	
 end
 
@@ -357,14 +355,14 @@ function ENT:CreateAmmo(Id, Data1, Data2, Data3, Data4, Data5, Data6, Data7, Dat
 	self.ConvertData = ACF.RoundTypes[self.RoundType].convert
 	self.BulletData = self:ConvertData( PlayerData )
 	
-	local Size = self:OBBMaxs() - self:OBBMins()
+	local Size = (self:OBBMaxs() - self:OBBMins())
 	local Efficiency = 0.11 * ACF.AmmoMod			--This is the part of space that's actually useful, the rest is wasted on interround gaps, loading systems ..
 	local vol = math.floor(Size.x * Size.y * Size.z)
 	self.Volume = vol*Efficiency	
 	local CapMul = (vol > 46000) and ((math.log(vol*0.00066)/math.log(2)-4)*0.125+1) or 1
 	self.Capacity = math.floor(CapMul*self.Volume*16.38/self.BulletData.RoundVolume)
 	self.Caliber = GunData.caliber
-	self.RoFMul = (vol > 46000) and (1-(math.log(vol*0.00066)/math.log(2)-4)*0.125) or 1 --*0.0625 for 25% @ 4x8x8, 0.025 10%, 0.0375 15%, 0.05 20%
+	self.RoFMul = (vol > 46000) and (1-(math.log(vol*0.00066)/math.log(2)-4)*0.05) or 1 --*0.0625 for 25% @ 4x8x8, 0.025 10%, 0.0375 15%, 0.05 20%
 	
 	self:SetNWString( "Ammo", self.Ammo )
 	self:SetNWString( "WireName", GunData.name .. " Ammo" )
@@ -378,6 +376,20 @@ end
 
 function ENT:AmmoMass() --Returns what the ammo mass would be if the crate was full
 	return math.floor( (self.BulletData.ProjMass + self.BulletData.PropMass) * self.Capacity * 2 )
+end
+
+function ENT:UpdateMass()
+	self.Mass = self.EmptyMass + self:AmmoMass()*(self.Ammo/math.max(self.Capacity,1))
+	
+	--reduce superflous engine calls, update crate mass every 5 kgs change
+	if math.abs(self.LastMass - self.Mass) > 5 then
+		self.LastMass = self.Mass
+		local phys = self:GetPhysicsObject()  	
+		if (phys:IsValid()) then 
+			phys:SetMass( self.Mass ) 
+		end
+	end
+	
 end
 
 
@@ -426,9 +438,7 @@ end
 function ENT:Think()
 	if not self:IsSolid() then self.Ammo = 0 end
 	
-	local AmmoMass = self:AmmoMass()
-	self.Mass = math.max(self.EmptyMass, self:GetPhysicsObject():GetMass() - AmmoMass) + AmmoMass*(self.Ammo/math.max(self.Capacity,1))
-	self:GetPhysicsObject():SetMass(self.Mass) 
+	self:UpdateMass()
 	
 	if self.Ammo ~= self.AmmoLast then
 		self:UpdateOverlayText()
@@ -437,8 +447,14 @@ function ENT:Think()
 	
 	local color = self:GetColor()
 	self:SetNWVector("TracerColour", Vector( color.r, color.g, color.b ) )
+	
+	local cvarGrav = GetConVar("sv_gravity")
+	local vec = Vector(0,0,cvarGrav:GetInt()*-1)
+	if( self.sitp_inspace ) then
+		vec = Vector(0, 0, 0)
+	end
 		
-	self:SetNWVector("Accel", Vector(0, 0, GetConVar("sv_gravity"):GetInt()*-1))
+	self:SetNWVector("Accel", vec)
 		
 	self:NextThink( CurTime() +  1 )
 	

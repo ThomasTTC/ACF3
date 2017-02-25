@@ -63,7 +63,7 @@ function Round.convert( Crate, PlayerData )
 	local ServerData = {}
 	local GUIData = {}
 
-	GUIData["LengthAdj"] = 0.5
+	Data["LengthAdj"] = 0.5
 	if not PlayerData["PropLength"] then PlayerData["PropLength"] = 0 end
 	if not PlayerData["ProjLength"] then PlayerData["ProjLength"] = 0 end
 	if not PlayerData["Data5"] then PlayerData["Data5"] = 3 end --flechette count

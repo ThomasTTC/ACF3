@@ -241,6 +241,20 @@ function ACF_SpallTrace( HitVec , SpallTr , SpallEnergy , SpallArea , Inflictor 
 	
 end
 
+function ACF_RicochetVector(Flight, HitNormal)
+	--bit of maths shamelessly stolen from wiremod to rotate a vector around an axis
+	local Vec = Flight:GetNormalized()
+	local x,y,z = HitNormal[1], HitNormal[2], HitNormal[3]
+	
+	local length = (x*x+y*y+z*z)^0.5
+	x,y,z = x/length, y/length, z/length
+	local Rotated = -Vector((-1 + (x^2)*2) * Vec[1] + (x*y*2) * Vec[2] + (x*z*2) * Vec[3],
+	(y*x*2) * Vec[1] + (-1 + (y^2)*2) * Vec[2] + (y*z*2) * Vec[3],
+	(z*x*2) * Vec[1] + (z*y*2) * Vec[2] + (-1 + (z^2)*2) * Vec[3])
+	
+	return Rotated
+end
+
 function ACF_RoundImpact( Bullet, Speed, Energy, Target, HitPos, HitNormal , Bone  )	--Simulate a round impacting on a prop
 	--if (Bullet.Type == "HEAT") then print("Pen: "..((Energy.Penetration / Bullet["PenArea"]) * ACF.KEtoRHA)) end
 	local Angle = ACF_GetHitAngle( HitNormal , Bullet["Flight"] )
@@ -262,8 +276,12 @@ function ACF_RoundImpact( Bullet, Speed, Energy, Target, HitPos, HitNormal , Bon
 	
 	HitRes.Ricochet = false
 	if Ricochet > 0 then
-		Bullet["Pos"] = HitPos
-		Bullet["Flight"] = (Bullet["Flight"]:GetNormalized() + HitNormal*(1-Ricochet+0.05) + VectorRand()*0.05):GetNormalized() * Speed * Ricochet
+		Bullet["Pos"] = HitPos + HitNormal * 0.75
+		--Bullet.FiredPos = HitPos
+		Bullet.FlightTime = 0
+		--Bullet["Flight"] = (Bullet["Flight"]:GetNormalized() + HitNormal*(1-Ricochet+0.05) + VectorRand()*0.05):GetNormalized() * Speed * Ricochet
+		Bullet.Flight = (ACF_RicochetVector(Bullet.Flight, HitNormal) + VectorRand()*0.025):GetNormalized() * Speed * Ricochet
+		Bullet.TraceBackComp = math.max(ACF_GetPhysicalParent(Target):GetPhysicsObject():GetVelocity():Dot(Bullet["Flight"]:GetNormalized()),0)
 		HitRes.Ricochet = true
 	end
 	
@@ -296,17 +314,8 @@ function ACF_PenetrateGround( Bullet, Energy, HitPos, HitNormal )
 		
 		if Ricochet > 0 and Bullet.GroundRicos < 2 then
 			Bullet.GroundRicos = Bullet.GroundRicos + 1
-			local Vec = Bullet.Flight:GetNormalized()
-			--bit of maths shamelessly stolen from wiremod to rotate a vector around an axis
-			local x,y,z = HitNormal[1], HitNormal[2], HitNormal[3]
-			local length = (x*x+y*y+z*z)^0.5
-			x,y,z = x/length, y/length, z/length
-			local Rotated = -Vector((-1 + (x^2)*2) * Vec[1] + (x*y*2) * Vec[2] + (x*z*2) * Vec[3],
-			(y*x*2) * Vec[1] + (-1 + (y^2)*2) * Vec[2] + (y*z*2) * Vec[3],
-			(z*x*2) * Vec[1] + (z*y*2) * Vec[2] + (-1 + (z^2)*2) * Vec[3])
-			
-			Bullet.Pos = HitPos
-			Bullet.Flight = (Rotated + VectorRand()*0.025):GetNormalized() * Speed * Ricochet
+			Bullet.Pos = HitPos + HitNormal * 1
+			Bullet.Flight = (ACF_RicochetVector(Bullet.Flight, HitNormal) + VectorRand()*0.05):GetNormalized() * Speed * Ricochet
 			HitRes.Ricochet = true
 		end
 	else --penetrated
@@ -322,23 +331,13 @@ function ACF_KEShove(Target, Pos, Vec, KE )
 	local CanDo = hook.Run("ACF_KEShove", Target, Pos, Vec, KE )
 	if CanDo == false then return end
 	
-	local phys = Target:GetPhysicsObject()
-	local parent = Target:GetParent()
-	local depth = 0
-	
-	if IsValid(parent) then
-		while IsValid(parent:GetParent()) and depth<5 do
-			depth = depth + 1
-			parent = parent:GetParent()
-		end
-		phys = parent:GetPhysicsObject()
-	end
+	local parent = ACF_GetPhysicalParent(Target)
+	local phys = parent:GetPhysicsObject()
 	
 	if IsValid(phys) then
-		if(!Target.acflastupdatemass) or ((Target.acflastupdatemass + 10) < CurTime()) then
-			ACF_CalcMassRatio(Target)
-		end
+		if not Target.acflastupdatemass) or Target.acflastupdatemass + 10 < CurTime() then ACF_CalcMassRatio(Target) end
 		if not Target.acfphystotal then return end --corner case error check
+		
 		local physratio = Target.acfphystotal / Target.acftotal
 		phys:ApplyForceOffset( Vec:GetNormal() * KE * physratio, Pos )
 	end
