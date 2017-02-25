@@ -272,7 +272,7 @@ function ACF_GetPhysicalParent( obj )
 	
 	--update cached parent
 	obj.acfphysparent = Parent
-	obj.acfphysstale = ACF.CurTime + 10 --when cached parent is considered stale and needs updating
+	obj.acfphysstale = CurTime() + 10 --when cached parent is considered stale and needs updating
 	
 	return Parent
 end

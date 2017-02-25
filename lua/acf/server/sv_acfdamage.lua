@@ -335,7 +335,7 @@ function ACF_KEShove(Target, Pos, Vec, KE )
 	local phys = parent:GetPhysicsObject()
 	
 	if IsValid(phys) then
-		if not Target.acflastupdatemass) or Target.acflastupdatemass + 10 < CurTime() then ACF_CalcMassRatio(Target) end
+		if not Target.acflastupdatemass or Target.acflastupdatemass + 10 < CurTime() then ACF_CalcMassRatio(Target) end
 		if not Target.acfphystotal then return end --corner case error check
 		
 		local physratio = Target.acfphystotal / Target.acftotal
