@@ -157,15 +157,15 @@ function ENT:ACF_Activate( Recalc )
 	self.ACF = self.ACF or {} 
 	
 	local PhysObj = self:GetPhysicsObject()
-	if not self.ACF.Aera then
-		self.ACF.Aera = PhysObj:GetSurfaceArea() * 6.45
+	if not self.ACF.Area then
+		self.ACF.Area = PhysObj:GetSurfaceArea() * 6.45
 	end
 	if not self.ACF.Volume then
 		self.ACF.Volume = PhysObj:GetVolume() * 16.38
 	end
 	
-	local Armour = EmptyMass*1000 / self.ACF.Aera / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
-	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop aera gone 
+	local Armour = EmptyMass*1000 / self.ACF.Area / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
+	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop area gone 
 	local Percent = 1 
 	
 	if Recalc and self.ACF.Health and self.ACF.MaxHealth then
@@ -183,10 +183,10 @@ function ENT:ACF_Activate( Recalc )
 	
 end
 
-function ENT:ACF_OnDamage( Entity, Energy, FrAera, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
+function ENT:ACF_OnDamage( Entity, Energy, FrArea, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
 
 	local Mul = ((Type == "HEAT" and ACF.HEATMulAmmo) or 1) --Heat penetrators deal bonus damage to ammo
-	local HitRes = ACF_PropDamage( Entity, Energy, FrAera * Mul, Angle, Inflictor )	--Calling the standard damage prop function
+	local HitRes = ACF_PropDamage( Entity, Energy, FrArea * Mul, Angle, Inflictor )	--Calling the standard damage prop function
 	
 	if self.Exploding or not self.IsExplosive then return HitRes end
 	
@@ -240,11 +240,9 @@ function MakeACF_Ammo(Owner, Pos, Angle, Id, Data1, Data2, Data3, Data4, Data5, 
 	Ammo.Ammo = Ammo.Capacity
 	Ammo.EmptyMass = ACF.Weapons.Ammo[Ammo.Id].weight
 	Ammo.Mass = Ammo.EmptyMass + Ammo:AmmoMass()
+	Ammo.LastMass = 1
 	
-	local phys = Ammo:GetPhysicsObject()  	
-	if (phys:IsValid()) then 
-		phys:SetMass( Ammo.Mass ) 
-	end
+	Ammo:UpdateMass()
 	
 	Owner:AddCount( "_acf_ammo", Ammo )
 	Owner:AddCleanup( "acfmenu", Ammo )
@@ -295,9 +293,8 @@ function ENT:Update( ArgsTable )
 	self:CreateAmmo(ArgsTable[4], ArgsTable[5], ArgsTable[6], ArgsTable[7], ArgsTable[8], ArgsTable[9], ArgsTable[10], ArgsTable[11], ArgsTable[12], ArgsTable[13], ArgsTable[14])
 	
 	self.Ammo = math.floor(self.Capacity*AmmoPercent)
-	local AmmoMass = self:AmmoMass()
-	self.Mass = math.min(self.EmptyMass, self:GetPhysicsObject():GetMass() - AmmoMass) + AmmoMass*(self.Ammo/math.max(self.Capacity,1)) --min is intentional, cause think to set it appropriately
-	self:GetPhysicsObject():SetMass(self.Mass) 
+	
+	self:UpdateMass()
 	
 	return true, msg
 	
@@ -381,6 +378,20 @@ function ENT:AmmoMass() --Returns what the ammo mass would be if the crate was f
 	return math.floor( (self.BulletData.ProjMass + self.BulletData.PropMass) * self.Capacity * 2 )
 end
 
+function ENT:UpdateMass()
+	self.Mass = self.EmptyMass + self:AmmoMass()*(self.Ammo/math.max(self.Capacity,1))
+	
+	--reduce superflous engine calls, update crate mass every 5 kgs change
+	if math.abs(self.LastMass - self.Mass) > 5 then
+		self.LastMass = self.Mass
+		local phys = self:GetPhysicsObject()  	
+		if (phys:IsValid()) then 
+			phys:SetMass( self.Mass ) 
+		end
+	end
+	
+end
+
 
 
 function ENT:GetInaccuracy()
@@ -427,9 +438,7 @@ end
 function ENT:Think()
 	if not self:IsSolid() then self.Ammo = 0 end
 	
-	local AmmoMass = self:AmmoMass()
-	self.Mass = math.max(self.EmptyMass, self:GetPhysicsObject():GetMass() - AmmoMass) + AmmoMass*(self.Ammo/math.max(self.Capacity,1))
-	self:GetPhysicsObject():SetMass(self.Mass) 
+	self:UpdateMass()
 	
 	if self.Ammo ~= self.AmmoLast then
 		self:UpdateOverlayText()

@@ -1,6 +1,6 @@
 --define the class
 ACF_defineGunClass("SA", {
-	spread = 0.08,
+	spread = 0.12,
 	name = "Semiautomatic Cannon",
 	desc = "Semiautomatic cannons offer better payloads than autocannons and less weight at the cost of rate of fire.",
 	muzzleflash = "30mm_muzzleflash_noscale",
@@ -17,9 +17,10 @@ ACF_defineGun("25mmSA", { --id
 	model = "models/autocannon/semiautocannon_25mm.mdl",
 	gunclass = "SA",
 	caliber = 2.5,
+	canparent = true,
 	weight = 200,
 	year = 1935,
-	rofmod = 1,
+	rofmod = 1.224,
 	magsize = 5,
 	magreload = 2,
 	round = {
@@ -34,13 +35,13 @@ ACF_defineGun("37mmSA", {
 	model = "models/autocannon/semiautocannon_37mm.mdl",
 	gunclass = "SA",
 	caliber = 3.7,
-	weight = 480,
+	weight = 540,
 	year = 1940,
-	rofmod = 1,
+	rofmod = 1.063,
 	magsize = 5,
 	magreload = 3.5,
 	round = {
-		maxlength = 45,
+		maxlength = 42,
 		propweight = 1.125
 	}
 } )
@@ -85,13 +86,13 @@ ACF_defineGun("76mmSA", {
 	model = "models/autocannon/semiautocannon_76mm.mdl",
 	gunclass = "SA",
 	caliber = 7.62,
-	weight = 3200,
+	weight = 2990,
 	year = 1984,
 	rofmod = 1,
 	magsize = 5,
 	magreload = 5,
 	round = {
-		maxlength = 75, --70.67
+		maxlength = 70,
 		propweight = 4.75
 	}
 } )

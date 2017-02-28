@@ -22,7 +22,7 @@ ACF_defineGun("37mmC", { --id
 	rofmod = 1.4,
 	sound = "weapons/ACF_Gun/ac_fire4.wav",
 	round = {
-		maxlength = 45,
+		maxlength = 48,
 		propweight = 1.125
 	}
 } )
@@ -85,8 +85,6 @@ ACF_defineGun("120mmC", {
 } )
 	
 ACF_defineGun("140mmC", {
-	ent = "acf_gun",
-	type = "Guns",
 	name = "140mm Cannon",
 	desc = "The 140mm fires a massive shell with enormous penetrative capability, but has a glacial reload speed and a very hefty weight.",
 	model = "models/tankgun/tankgun_140mm.mdl",

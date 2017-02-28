@@ -367,16 +367,16 @@ function ENT:ACF_Activate()
 	if PhysObj:GetMesh() then Count = #PhysObj:GetMesh() end
 	if PhysObj:IsValid() and Count and Count>100 then
 
-		if not Entity.ACF.Aera then
-			Entity.ACF.Aera = (PhysObj:GetSurfaceArea() * 6.45) * 0.52505066107
+		if not Entity.ACF.Area then
+			Entity.ACF.Area = (PhysObj:GetSurfaceArea() * 6.45) * 0.52505066107
 		end
 		--if not Entity.ACF.Volume then
 		--	Entity.ACF.Volume = (PhysObj:GetVolume() * 16.38)
 		--end
 	else
 		local Size = Entity.OBBMaxs(Entity) - Entity.OBBMins(Entity)
-		if not Entity.ACF.Aera then
-			Entity.ACF.Aera = ((Size.x * Size.y)+(Size.x * Size.z)+(Size.y * Size.z)) * 6.45
+		if not Entity.ACF.Area then
+			Entity.ACF.Area = ((Size.x * Size.y)+(Size.x * Size.z)+(Size.y * Size.z)) * 6.45
 		end
 		--if not Entity.ACF.Volume then
 		--	Entity.ACF.Volume = Size.x * Size.y * Size.z * 16.38
@@ -384,11 +384,11 @@ function ENT:ACF_Activate()
 	end
 	
 	Entity.ACF.Ductility = Entity.ACF.Ductility or 0
-	--local Area = (Entity.ACF.Aera+Entity.ACF.Aera*math.Clamp(Entity.ACF.Ductility,-0.8,0.8))
-	local Area = (Entity.ACF.Aera)
+	--local Area = (Entity.ACF.Area+Entity.ACF.Area*math.Clamp(Entity.ACF.Ductility,-0.8,0.8))
+	local Area = (Entity.ACF.Area)
 	--local Armour = (Entity:GetPhysicsObject():GetMass()*1000 / Area / 0.78) / (1 + math.Clamp(Entity.ACF.Ductility, -0.8, 0.8))^(1/2)	--So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
 	local Armour = (Entity:GetPhysicsObject():GetMass()*1000 / Area / 0.78) 
-	--local Health = (Area/ACF.Threshold) * (1 + math.Clamp(Entity.ACF.Ductility, -0.8, 0.8))												--Setting the threshold of the prop aera gone
+	--local Health = (Area/ACF.Threshold) * (1 + math.Clamp(Entity.ACF.Ductility, -0.8, 0.8))												--Setting the threshold of the prop area gone
 	local Health = (Area/ACF.Threshold)
 	
 	local Percent = 1 
@@ -409,10 +409,10 @@ function ENT:ACF_Activate()
 	--print(Entity.ACF.Health)
 end
 
-function ENT:ACF_OnDamage( Entity, Energy, FrAera, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
+function ENT:ACF_OnDamage( Entity, Energy, FrArea, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
 
 	local Mul = ((Type == "HEAT" and ACF.HEATMulEngine) or 1) --Heat penetrators deal bonus damage to engines
-	local HitRes = ACF_PropDamage( Entity, Energy, FrAera * Mul, Angle, Inflictor )	--Calling the standard damage prop function
+	local HitRes = ACF_PropDamage( Entity, Energy, FrArea * Mul, Angle, Inflictor )	--Calling the standard damage prop function
 	
 	return HitRes --This function needs to return HitRes
 end
@@ -450,21 +450,11 @@ function ENT:CheckLegal()
 	-- make sure weight is not below stock
 	if self:GetPhysicsObject():GetMass() < self.Weight then return false end
 	
-	local rootparent = self:GetParent()
-	
 	-- if it's not parented we're fine
-	if not IsValid( rootparent ) then return true end
+	if not IsValid( self:GetParent() ) then return true end
 	
-	--find the root parent
-	local depth = 0
-	while rootparent:GetParent():IsValid() and depth<5 do
-		depth = depth + 1
-		rootparent = rootparent:GetParent()
-	end
-	
-	--if there's still more parents, it's not legal
-	if rootparent:GetParent():IsValid() then return false end
-	
+	local rootparent = ACF_GetPhysicalParent(self)
+
 	--make sure it's welded to root parent
 	for k, v in pairs( constraint.FindConstraints( self, "Weld" ) ) do
 		if v.Ent1 == rootparent or v.Ent2 == rootparent then return true end

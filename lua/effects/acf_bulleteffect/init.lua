@@ -3,10 +3,9 @@ function EFFECT:Init( data )
 
 	self.Index = data:GetAttachment()
 	self:SetModel("models/munitions/round_100mm_shot.mdl") 
-	
 	if not ( self.Index ) then 
-		Msg("ACF_BulletEffect: Error! Insufficient data to spawn.\n")
-		self:Remove() 
+		--self:Remove()
+		self.Alive = false
 		return 
 	end
 	self.CreateTime = CurTime()
@@ -38,7 +37,9 @@ function EFFECT:Init( data )
 			
 		end	
 		ACF_SimBulletFlight( Bullet, self.Index )
-		self:Remove()	--This effect updated the old one, so it removes itself now	
+		--self:Remove()	--This effect updated the old one, so it removes itself now	
+		if Bullet.Tracer then Bullet.Tracer:Finish() end
+		self.Alive = false
 	
 	else
 		--print("Creating Bullet Effect")
@@ -46,11 +47,13 @@ function EFFECT:Init( data )
 		BulletData.Crate = data:GetEntity()
 		--TODO: Check if it is actually a crate
 		if not IsValid(BulletData.Crate) then
-			self:Remove() 
+			--self:Remove()
+			self.Alive = false
 			return
 		end
 		BulletData.SimFlight = data:GetStart()*10
 		BulletData.SimPos = data:GetOrigin()
+		BulletData.SimPosLast = BulletData.SimPos
 		BulletData.Caliber = BulletData.Crate:GetNWFloat( "Caliber", 10 )
 		BulletData.RoundMass = BulletData.Crate:GetNWFloat( "ProjMass", 10 )
 		BulletData.FillerMass = BulletData.Crate:GetNWFloat( "FillerMass" )
@@ -73,6 +76,7 @@ function EFFECT:Init( data )
 		
 		self:SetPos( BulletData.SimPos )									--Moving the effect to the calculated position
 		self:SetAngles( BulletData.SimFlight:Angle() )
+		self.Alive = true
 		
 		ACF_SimBulletFlight( ACF.BulletEffect[self.Index], self.Index )
 		
@@ -98,50 +102,52 @@ end
 function EFFECT:Think()
 
 	local Bullet = ACF.BulletEffect[self.Index]
-	if Bullet and self.CreateTime > CurTime()-30 then
+	
+	if self.Alive and Bullet and self.CreateTime > CurTime()-30 then
 		return true
-	else
-		self:Remove()
-		return false
 	end
 	
+	--self:Remove()
+	if Bullet.Tracer then Bullet.Tracer:Finish() end
+	return false
+
 end 
 
 function EFFECT:ApplyMovement( Bullet )
 
 	local setPos = Bullet.SimPos
-	if((math.abs(setPos.x) > 16000) or (math.abs(setPos.y) > 16000) or (setPos.z < -16000)) then
-		self:Remove()
+	if((math.abs(setPos.x) > 16380) or (math.abs(setPos.y) > 16380) or (setPos.z < -16380)) then
+		--self:Remove()
+		if Bullet.Tracer then Bullet.Tracer:Finish() end
+		self.Alive = false
 		return
 	end
-	if( setPos.z < 16000 ) then
-		self:SetPos( Bullet.SimPos )--Moving the effect to the calculated position
+	if( setPos.z < 16380 ) then
+		self:SetPos( setPos )--Moving the effect to the calculated position
 		self:SetAngles( Bullet.SimFlight:Angle() )
 	end
-	
+
 	if Bullet.Tracer then
 		local DeltaTime = CurTime() - Bullet.LastThink
-		local DeltaPos = Bullet.SimFlight*DeltaTime
+		--local DeltaPos = Bullet.SimFlight*DeltaTime
+		local DeltaPos = Bullet.SimPos - Bullet.SimPosLast
 		local Length =  math.max(DeltaPos:Length()*2,1)
 		local MaxSprites = 2 --math.min(math.floor(math.max(Bullet.Caliber/5,1)*1.333)+1,5)
-		--for i=1, MaxSprites do
-			--local Light = Bullet.Tracer:Add( "sprites/light_glow02_add.vmt", Bullet.SimPos - (DeltaPos*i/MaxSprites) )
-			--local Light = Bullet.Tracer:Add( "sprites/acf_tracer.vmt", Bullet.SimPos - (DeltaPos*i/MaxSprites) )
-			local Light = Bullet.Tracer:Add( "sprites/acf_tracer.vmt", Bullet.SimPos - DeltaPos )
-			if (Light) then		
-				Light:SetAngles( Bullet.SimFlight:Angle() )
-				Light:SetVelocity( Bullet.SimFlight:GetNormalized() )
-				Light:SetColor( Bullet.TracerColour.x, Bullet.TracerColour.y, Bullet.TracerColour.z )
-				Light:SetDieTime( math.Clamp(CurTime()-self.CreateTime,0.075,0.15) ) -- 0.075, 0.1
-				Light:SetStartAlpha( 255 )
-				Light:SetEndAlpha( 155 )
-				Light:SetStartSize( 15*Bullet.Caliber ) -- 5
-				Light:SetEndSize( 1 )
-				Light:SetStartLength( Length )
-				Light:SetEndLength( 1 )
-			end
+		local Light = Bullet.Tracer:Add( "sprites/acf_tracer.vmt", setPos)-- - DeltaPos )
+		if (Light) then
+			Light:SetAngles( Bullet.SimFlight:Angle() )
+			Light:SetVelocity( Bullet.SimFlight:GetNormalized() ) --Vector() ) --Bullet.SimFlight )
+			Light:SetColor( Bullet.TracerColour.x, Bullet.TracerColour.y, Bullet.TracerColour.z )
+			Light:SetDieTime( math.Clamp(CurTime()-self.CreateTime,0.075,0.15) ) -- 0.075, 0.1
+			Light:SetStartAlpha( 255 )
+			Light:SetEndAlpha( 155 )
+			Light:SetStartSize( 15*Bullet.Caliber ) -- 5
+			Light:SetEndSize( 1 ) --15*Bullet.Caliber
+			Light:SetStartLength( Length )
+			Light:SetEndLength( 1 ) --Length
+		end
 		for i=1, MaxSprites do
-			local Smoke = Bullet.Tracer:Add( "particle/smokesprites_000"..math.random(1,9), Bullet.SimPos - (DeltaPos*i/MaxSprites) )
+			local Smoke = Bullet.Tracer:Add( "particle/smokesprites_000"..math.random(1,9), setPos - (DeltaPos*i/MaxSprites) )
 			if (Smoke) then		
 				Smoke:SetAngles( Bullet.SimFlight:Angle() )
 				Smoke:SetVelocity( Bullet.SimFlight*0.05 )
@@ -159,36 +165,37 @@ function EFFECT:ApplyMovement( Bullet )
 			end
 		end
 	end
-
 end
 
--- function EFFECT:HitEffect( HitPos, Energy, EffectType )	--EffectType key : 1 = Round stopped, 2 = Round penetration
+--[[
+function EFFECT:HitEffect( HitPos, Energy, EffectType )	--EffectType key : 1 = Round stopped, 2 = Round penetration
 
-	-- if (EffectType > 0) then
-		-- local BulletEffect = {}
-			-- BulletEffect.Num = 1
-			-- BulletEffect.Src = HitPos - self.SimFlight:GetNormalized()*20
-			-- BulletEffect.Dir = self.SimFlight
-			-- BulletEffect.Spread = Vector(0,0,0)
-			-- BulletEffect.Tracer = 0
-			-- BulletEffect.Force = 0
-			-- BulletEffect.Damage = 0	 
-		-- self.Entity:FireBullets(BulletEffect) 
-	-- end
-	-- if (EffectType == 2) then
-		-- local Spall = EffectData()
-			-- Spall:SetOrigin( HitPos )
-			-- Spall:SetNormal( (self.SimFlight):GetNormalized() )
-			-- Spall:SetScale( math.max(Energy/5000,1) )
-		-- util.Effect( "AP_Hit", Spall )
-	-- elseif (EffectType == 3) then
-		-- local Sparks = EffectData()
-			-- Sparks:SetOrigin( HitPos )
-			-- Sparks:SetNormal( (self.SimFlight):GetNormalized() )
-		-- util.Effect( "ManhackSparks", Sparks )
-	-- end	
+	if (EffectType > 0) then
+		local BulletEffect = {}
+			BulletEffect.Num = 1
+			BulletEffect.Src = HitPos - self.SimFlight:GetNormalized()*20
+			BulletEffect.Dir = self.SimFlight
+			BulletEffect.Spread = Vector(0,0,0)
+			BulletEffect.Tracer = 0
+			BulletEffect.Force = 0
+			BulletEffect.Damage = 0	 
+		self.Entity:FireBullets(BulletEffect) 
+	end
+	if (EffectType == 2) then
+		local Spall = EffectData()
+			Spall:SetOrigin( HitPos )
+			Spall:SetNormal( (self.SimFlight):GetNormalized() )
+			Spall:SetScale( math.max(Energy/5000,1) )
+		util.Effect( "AP_Hit", Spall )
+	elseif (EffectType == 3) then
+		local Sparks = EffectData()
+			Sparks:SetOrigin( HitPos )
+			Sparks:SetNormal( (self.SimFlight):GetNormalized() )
+		util.Effect( "ManhackSparks", Sparks )
+	end	
 
--- end
+end
+--]]
 
 function EFFECT:Render()  
 

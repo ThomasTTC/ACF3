@@ -240,6 +240,10 @@ e2function number entity:acfUnlinkFrom(entity target, number notify)
     return success and 1 or 0
 end
 
+--returns current acf dragdivisor
+e2function number acfDragDiv()
+	return ACF.DragDiv
+end
 
 -- [ Engine Functions ] --
 
@@ -752,10 +756,10 @@ e2function number entity:acfPenetration()
 	local Energy
 	if Type == "AP" or Type == "APHE" then
 		Energy = ACF_Kinetic(this.BulletData["MuzzleVel"]*39.37, this.BulletData["ProjMass"] - (this.BulletData["FillerMass"] or 0), this.BulletData["LimitVel"] )
-		return math.Round((Energy.Penetration/this.BulletData["PenAera"])*ACF.KEtoRHA,3)
+		return math.Round((Energy.Penetration/this.BulletData["PenArea"])*ACF.KEtoRHA,3)
 	elseif Type == "HEAT" then
 		Energy = ACF_Kinetic(this.BulletData["SlugMV"]*39.37, this.BulletData["SlugMass"], 9999999 )
-		return math.Round((Energy.Penetration/this.BulletData["SlugPenAera"])*ACF.KEtoRHA,3)
+		return math.Round((Energy.Penetration/this.BulletData["SlugPenArea"])*ACF.KEtoRHA,3)
 	elseif Type == "FL" then
 		Energy = ACF_Kinetic(this.BulletData["MuzzleVel"]*39.37 , this.BulletData["FlechetteMass"], this.BulletData["LimitVel"] )
 		return math.Round((Energy.Penetration/this.BulletData["FlechettePenArea"])*ACF.KEtoRHA, 3)
@@ -941,3 +945,5 @@ e2function number entity:acfPeakFuelUse()
 	end
 	return math.Round(Consumption, 3)
 end
+
+

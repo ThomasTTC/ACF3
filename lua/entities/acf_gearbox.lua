@@ -115,14 +115,15 @@ if CLIENT then
 				acfmenupanel.CData.ShiftGenPanel = vgui.Create( "DPanel" )
 					acfmenupanel.CData.ShiftGenPanel:SetPaintBackground( false )
 					acfmenupanel.CData.ShiftGenPanel:DockPadding( 4, 0, 4, 0 )
-					acfmenupanel.CData.ShiftGenPanel:SetTall( 40 )
+					acfmenupanel.CData.ShiftGenPanel:SetTall( 60 )
 					acfmenupanel.CData.ShiftGenPanel:SizeToContentsX()
 					acfmenupanel.CData.ShiftGenPanel.Gears = Table.gears
 					
 				acfmenupanel.CData.ShiftGenPanel.Calc = acfmenupanel.CData.ShiftGenPanel:Add( "DButton" )
 					acfmenupanel.CData.ShiftGenPanel.Calc:SetText( "Calculate" )
-					acfmenupanel.CData.ShiftGenPanel.Calc:Dock( RIGHT )
-					acfmenupanel.CData.ShiftGenPanel.Calc:SetWide( 80 )
+					acfmenupanel.CData.ShiftGenPanel.Calc:Dock( BOTTOM )
+					--acfmenupanel.CData.ShiftGenPanel.Calc:SetWide( 80 )
+					acfmenupanel.CData.ShiftGenPanel.Calc:SetTall( 20 )
 					acfmenupanel.CData.ShiftGenPanel.Calc.DoClick = function()
 						local str, factor = acfmenupanel.CData.UnitsInput:GetSelected()
 						local mul = math.pi * acfmenupanel.CData.ShiftGenPanel.RPM:GetValue() * acfmenupanel.CData.ShiftGenPanel.Ratio:GetValue() * acfmenupanel.CData[10]:GetValue() * acfmenupanel.CData.ShiftGenPanel.Wheel:GetValue() / (60 * factor)
@@ -137,7 +138,7 @@ if CLIENT then
 						acfmenupanel.CData.WheelPanel:SetPaintBackground( false )
 						acfmenupanel.CData.WheelPanel:DockMargin( 4, 0, 4, 0 )
 						acfmenupanel.CData.WheelPanel:Dock( RIGHT )
-						acfmenupanel.CData.WheelPanel:SetWide( 80 )
+						acfmenupanel.CData.WheelPanel:SetWide( 76 )
 						acfmenupanel.CData.WheelPanel:SetTooltip( "If you use default spherical settings, add 0.5 to your wheel diameter.\nFor treaded vehicles, use the diameter of road wheels, not drive wheels." )
 
 						acfmenupanel.CData.ShiftGenPanel.WheelLabel = acfmenupanel.CData.WheelPanel:Add( "DLabel" )
@@ -157,7 +158,7 @@ if CLIENT then
 						acfmenupanel.CData.RatioPanel:SetPaintBackground( false )
 						acfmenupanel.CData.RatioPanel:DockMargin( 4, 0, 4, 0 )
 						acfmenupanel.CData.RatioPanel:Dock( RIGHT )
-						acfmenupanel.CData.RatioPanel:SetWide( 80 )
+						acfmenupanel.CData.RatioPanel:SetWide( 76 )
 						acfmenupanel.CData.RatioPanel:SetTooltip( "Total ratio is the ratio of all gearboxes (exluding this one) multiplied together.\nFor example, if you use engine to automatic to diffs to wheels, your total ratio would be (diff gear ratio * diff final ratio)." )
 
 						acfmenupanel.CData.ShiftGenPanel.RatioLabel = acfmenupanel.CData.RatioPanel:Add( "DLabel" )
@@ -177,7 +178,7 @@ if CLIENT then
 						acfmenupanel.CData.RPMPanel:SetPaintBackground( false )
 						acfmenupanel.CData.RPMPanel:DockMargin( 4, 0, 4, 0 )
 						acfmenupanel.CData.RPMPanel:Dock( RIGHT )
-						acfmenupanel.CData.RPMPanel:SetWide( 80 )
+						acfmenupanel.CData.RPMPanel:SetWide( 76 )
 						acfmenupanel.CData.RPMPanel:SetTooltip( "Target engine RPM to upshift at." )
 				
 						acfmenupanel.CData.ShiftGenPanel.RPMLabel = acfmenupanel.CData.RPMPanel:Add( "DLabel" )
@@ -553,7 +554,11 @@ function ENT:Update( ArgsTable )
 		self.ShiftScale = 1
 	end
 	
-	self:ChangeGear(1)
+	--self:ChangeGear(1) -- fails on updating because func exits on detecting same gear
+	self.Gear = 1
+	self.GearRatio = (self.GearTable[self.Gear] or 0)*self.GearTable.Final
+	self.ChangeFinished = CurTime() + self.SwitchTime
+	self.InGear = false
 	
 	if self.Dual or self.DoubleDiff then
 		self:SetBodygroup(1, 1)
@@ -674,20 +679,10 @@ function ENT:CheckLegal()
 	if self:GetPhysicsObject():GetMass() < self.Mass then return false end
 	
 	self.RootParent = nil
-	local rootparent = self:GetParent()
+	-- if not parented then its legal
+	if not IsValid(self:GetParent()) then return true end
 	
-	-- if it's not parented, we're fine
-	if not IsValid( rootparent ) then return true end
-	
-	--find the root parent
-	local depth = 0
-	while rootparent:GetParent():IsValid() and depth<5 do
-		depth = depth + 1
-		rootparent = rootparent:GetParent()
-	end
-	
-	--if there's still more parents, it's not legal
-	if rootparent:GetParent():IsValid() then return false end
+	local rootparent = ACF_GetPhysicalParent(self)
 	
 	--if it's welded, make sure it's welded to root parent
 	if IsValid( constraint.FindConstraintEntity( self, "Weld" ) ) then
@@ -701,7 +696,7 @@ function ENT:CheckLegal()
 			return true
 		end
 	end
-	
+
 	return false
 	
 end
@@ -938,15 +933,14 @@ function ENT:ChangeGear(value)
 	
 end
 
+--handles gearing for automatics; 0=neutral, 1=forward autogearing, 2=reverse
 function ENT:ChangeDrive(value)
 
 	local new = math.Clamp(math.floor(value),0,2)
 	if self.Drive == new then return end
 	
 	self.Drive = new
-	if self.Drive == 0 then
-		self:ChangeGear(0)
-	elseif self.Drive == 2 then
+	if self.Drive == 2 then
 		self.Gear = self.Reverse
 		self.GearRatio = (self.GearTable[self.Gear] or 0)*self.GearTable.Final
 		self.ChangeFinished = CurTime() + self.SwitchTime
@@ -956,7 +950,7 @@ function ENT:ChangeDrive(value)
 		self:EmitSound("buttons/lever7.wav",250,100)
 		Wire_TriggerOutput(self, "Ratio", self.GearRatio)
 	else
-		self:ChangeGear(1)
+		self:ChangeGear(self.Drive) --autogearing in :calc will set correct gear
 	end
 	
 end

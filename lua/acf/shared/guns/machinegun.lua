@@ -20,7 +20,9 @@ ACF_defineGun("7.62mmMG", { --id
 	caliber = 0.762,
 	weight = 15,
 	year = 1930,
-	rofmod = 2,
+	rofmod = 1.59,
+	magsize = 250,
+	magreload = 6,
 	round = {
 		maxlength = 13,
 		propweight = 0.04
@@ -36,6 +38,9 @@ ACF_defineGun("12.7mmMG", {
 	caliber = 1.27,
 	weight = 30,
 	year = 1910,
+	rofmod = 0.766,
+	magsize = 150,
+	magreload = 6,
 	round = {
 		maxlength = 15.8,
 		propweight = 0.03
@@ -51,6 +56,9 @@ ACF_defineGun("14.5mmMG", {
 	caliber = 1.45,
 	weight = 45,
 	year = 1932,
+	rofmod = 0.72,
+	magsize = 90,
+	magreload = 5,
 	round = {
 		maxlength = 19.5,
 		propweight = 0.04
@@ -63,9 +71,12 @@ ACF_defineGun("20mmMG", {
 	model = "models/machinegun/machinegun_20mm.mdl",
 	gunclass = "MG",
 	caliber = 2.0,
+	canparent = true,
 	weight = 95,
 	year = 1935,
 	rofmod = 0.55,
+	magsize = 50,
+	magreload = 4,
 	round = {
 		maxlength = 22,
 		propweight = 0.09

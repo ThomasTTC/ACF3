@@ -2,7 +2,7 @@ ACF = {}
 ACF.AmmoTypes = {}
 ACF.MenuFunc = {}
 ACF.AmmoBlacklist = {}
-ACF.Version = 569 -- REMEMBER TO CHANGE THIS FOR GODS SAKE, OMFG!!!!!!! -wrex   Update the changelog too! -Ferv
+ACF.Version = 574 -- REMEMBER TO CHANGE THIS FOR GODS SAKE, OMFG!!!!!!! -wrex   Update the changelog too! -Ferv
 ACF.CurrentVersion = 0 -- just defining a variable, do not change
 
 ACF.Year = 1945
@@ -10,10 +10,10 @@ ACF.Year = 1945
 ACF.Threshold = 264.7	--Health Divisor (don't forget to update cvar function down below)
 ACF.PartialPenPenalty = 5 --Exponent for the damage penalty for partial penetration
 ACF.PenAreaMod = 0.85
-ACF.KinFudgeFactor = 2.1	--True kinetic would be 2, over that it's speed biaised, below it's mass biaised
-ACF.KEtoRHA = 0.25		--Empirical conversion from (kinetic energy in KJ)/(Aera in Cm2) to RHA penetration
-ACF.GroundtoRHA = 0.05		--How much mm of steel is a mm of ground worth (Real soil is about 0.15
-ACF.KEtoSpall = 1
+ACF.KinFudgeFactor = 2.1	--True kinetic would be 2, over that it's speed biaised, below it's mass biaised.
+ACF.KEtoRHA = 0.25		--Empirical conversion from (kinetic energy in KJ)/(Area in Cm2) to RHA penetration
+ACF.GroundtoRHA = 0.15		--How much mm of steel is a mm of ground worth (Real soil is about 0.15
+ACF.KEtoSpall = 2
 ACF.AmmoMod = 0.6		-- Ammo modifier. 1 is 1x the amount of ammo
 ACF.ArmorMod = 1
 ACF.Spalling = 0
@@ -31,7 +31,7 @@ ACF.HEATMulAmmo = 16.5 		--HEAT slug damage multiplier; 13.2x roughly equal to A
 ACF.HEATMulFuel = 8.25		--needs less multiplier, much less health than ammo
 ACF.HEATMulEngine = 8.25	--likewise
 
-ACF.DragDiv = 80		--Drag fudge factor
+ACF.DragDiv = 40		--Drag fudge factor
 ACF.VelScale = 1		--Scale factor for the shell velocities in the game world
 -- local PhysEnv = physenv.GetPerformanceSettings()
 ACF.PhysMaxVel = 4000
@@ -45,7 +45,7 @@ ACF.PDensity = 1.6	--Gun propellant density (Real powders go from 0.7 to 1.6, i'
 ACF.TorqueBoost = 1.25 --torque multiplier from using fuel
 ACF.FuelRate = 5.0  --multiplier for fuel usage, 1.0 is approx real world
 ACF.ElecRate = 1.5 --multiplier for electrics
-ACF.TankVolumeMul = 1.0 -- multiplier for fuel tank volume
+ACF.TankVolumeMul = 0.125 -- multiplier for fuel tank capacity, 1.0 is approx real world
 
 ACF.FuelDensity = { --kg/liter
 	Diesel = 0.832,  
@@ -99,7 +99,7 @@ if file.Exists("acf/shared/acf_userconfig.lua", "LUA") then
 end
 
 
-CreateConVar('sbox_max_acf_gun', 12)
+CreateConVar('sbox_max_acf_gun', 16)
 CreateConVar('sbox_max_acf_smokelauncher', 10)
 CreateConVar('sbox_max_acf_ammo', 32)
 CreateConVar('sbox_max_acf_misc', 32)
@@ -255,6 +255,28 @@ function ACF_Kinetic( Speed , Mass, LimitVel )
 	return Energy
 end
 
+-- returns last parent in chain, which has physics
+function ACF_GetPhysicalParent( obj )
+	if not IsValid(obj) then return nil end
+	
+	--check for fresh cached parent
+	if obj.acfphysparent and CurTime() < obj.acfphysstale then
+		return obj.acfphysparent
+	end
+	
+	local Parent = obj
+	
+	while IsValid(Parent:GetParent()) do
+		Parent = Parent:GetParent()
+	end
+	
+	--update cached parent
+	obj.acfphysparent = Parent
+	obj.acfphysstale = CurTime() + 10 --when cached parent is considered stale and needs updating
+	
+	return Parent
+end
+
 -- Global Ratio Setting Function
 function ACF_CalcMassRatio( obj, pwr )
 	if not IsValid(obj) then return end
@@ -264,13 +286,7 @@ function ACF_CalcMassRatio( obj, pwr )
 	local fuel = 0
 	
 	-- find the physical parent highest up the chain
-	local Parent = obj
-	local depth = 0
-	
-	while Parent:GetParent():IsValid() and depth<6 do
-		Parent = Parent:GetParent()
-		depth = depth + 1
-	end
+	local Parent = ACF_GetPhysicalParent(obj)
 	
 	-- get the shit that is physically attached to the vehicle
 	local PhysEnts = ACF_GetAllPhysicalConstraints( Parent )
@@ -309,10 +325,11 @@ function ACF_CalcMassRatio( obj, pwr )
 		
 	end
 	
+	local Time = CurTime()
 	for k, v in pairs( AllEnts ) do
 		v.acfphystotal = PhysMass
 		v.acftotal = Mass
-		v.acflastupdatemass = CurTime()
+		v.acflastupdatemass = Time
 	end
 	
 	if pwr then return { Power = power, Fuel = fuel } end
@@ -330,29 +347,28 @@ CreateConVar("acf_spalling", 0)
 CreateConVar("acf_gunfire", 1)
 
 function ACF_CVarChangeCallback(CVar, Prev, New)
-	if( CVar == "acf_healthmod" ) then
+	local New = tonumber(New)
+
+	if CVar == "acf_healthmod" then
 		ACF.Threshold = 264.7 / math.max(New, 0.01)
-		print ("Health Mod changed to a factor of " .. New)
-	elseif( CVar == "acf_armormod" ) then
+		
+		print("Health Mod changed to a factor of " .. New)
+	elseif CVar == "acf_armormod" then
 		ACF.ArmorMod = 1 * math.max(New, 0)
-		print ("Armor Mod changed to a factor of " .. New)
-	elseif( CVar == "acf_ammomod" ) then
+
+		print("Armor Mod changed to a factor of " .. New)
+	elseif CVar == "acf_ammomod" then
 		ACF.AmmoMod = 1 * math.max(New, 0.01)
-		print ("Ammo Mod changed to a factor of " .. New)
-	elseif( CVar == "acf_spalling" ) then
-		ACF.Spalling = math.floor(math.Clamp(New, 0, 1))
-		local text = "off"
-		if(ACF.Spalling > 0) then
-			text = "on"
-		end
-		print ("ACF Spalling is now " .. text)
-	elseif( CVar == "acf_gunfire" ) then
-		ACF.GunfireEnabled = tobool( New )
-		local text = "disabled"
-		if ACF.GunfireEnabled then 
-			text = "enabled" 
-		end
-		print ("ACF Gunfire has been " .. text)
+
+		print("Ammo Mod changed to a factor of " .. New)
+	elseif CVar == "acf_spalling" then
+		ACF.Spalling = New ~= 0
+
+		print("ACF Spalling is now " .. (New ~= 0 and "enabled" or "disabled"))
+	elseif CVar == "acf_gunfire"  then
+		ACF.GunfireEnabled = New ~= 0
+
+		print("ACF Gunfire has been " .. (New ~= 0 and "enabled" or "disabled"))
 	end
 end
 

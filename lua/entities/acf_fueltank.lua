@@ -88,12 +88,11 @@ if CLIENT then
 		local FuelID = acfmenupanel.FuelTankData.FuelID
 		local Dims = Tanks[TankID].dims
 		
-		local Wall = 0.1 --wall thickness in inches
-		local Size = math.floor(Dims[1] * Dims[2] * Dims[3])
-		local Volume = math.floor((Dims[1] - Wall) * (Dims[2] - Wall) * (Dims[3] - Wall))
-		local Capacity = Volume * ACF.CuIToLiter * ACF.TankVolumeMul * 0.125
-		local EmptyMass = ((Size - Volume)*16.387)*7.9/1000
-		local Mass = EmptyMass + Capacity * ACF.FuelDensity[FuelID]
+		local Wall = 0.03937 --wall thickness in inches (1mm)
+		local Volume = Dims.V - (Dims.S * Wall) -- total volume of tank (cu in), reduced by wall thickness
+		local Capacity = Volume * ACF.CuIToLiter * ACF.TankVolumeMul * 0.4774 --internal volume available for fuel in liters, with magic realism number
+		local EmptyMass = ((Dims.S * Wall)*16.387)*(7.9/1000) -- total wall volume * cu in to cc * density of steel (kg/cc)
+		local Mass = EmptyMass + Capacity * ACF.FuelDensity[FuelID] -- weight of tank + weight of fuel
 			
 		--fuel and tank info
 		if FuelID == "Electric" then
@@ -174,15 +173,15 @@ function ENT:ACF_Activate( Recalc )
 	self.ACF = self.ACF or {} 
 	
 	local PhysObj = self:GetPhysicsObject()
-	if not self.ACF.Aera then
-		self.ACF.Aera = PhysObj:GetSurfaceArea() * 6.45
+	if not self.ACF.Area then
+		self.ACF.Area = PhysObj:GetSurfaceArea() * 6.45
 	end
 	if not self.ACF.Volume then
 		self.ACF.Volume = PhysObj:GetVolume() * 1
 	end
 	
-	local Armour = self.EmptyMass*1000 / self.ACF.Aera / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
-	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop aera gone 
+	local Armour = self.EmptyMass*1000 / self.ACF.Area / 0.78 --So we get the equivalent thickness of that prop in mm if all it's weight was a steel plate
+	local Health = self.ACF.Volume/ACF.Threshold							--Setting the threshold of the prop area gone 
 	
 	local Percent = 1 
 	if Recalc and self.ACF.Health and self.ACF.MaxHealth then
@@ -200,10 +199,10 @@ function ENT:ACF_Activate( Recalc )
 	
 end
 
-function ENT:ACF_OnDamage( Entity, Energy, FrAera, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
+function ENT:ACF_OnDamage( Entity, Energy, FrArea, Angle, Inflictor, Bone, Type )	--This function needs to return HitRes
 
 	local Mul = ((Type == "HEAT" and ACF.HEATMulFuel) or 1) --Heat penetrators deal bonus damage to fuel
-	local HitRes = ACF_PropDamage( Entity, Energy, FrAera * Mul, Angle, Inflictor )	--Calling the standard damage prop function
+	local HitRes = ACF_PropDamage( Entity, Energy, FrArea * Mul, Angle, Inflictor )	--Calling the standard damage prop function
 	
 	local NoExplode = self.FuelType == "Diesel" and not (Type == "HE" or Type == "HEAT")
 	if self.Exploding or NoExplode or not self.IsExplosive then return HitRes end
@@ -259,6 +258,8 @@ function MakeACF_FuelTank(Owner, Pos, Angle, Id, Data1, Data2, Data3, Data4, Dat
 	Tank:PhysicsInit( SOLID_VPHYSICS )      	
 	Tank:SetMoveType( MOVETYPE_VPHYSICS )     	
 	Tank:SetSolid( SOLID_VPHYSICS )
+	
+	Tank.LastMass = 1
 
 	Tank:UpdateFuelTank(Id, SId, Data2)
 	
@@ -278,15 +279,18 @@ duplicator.RegisterEntityClass("acf_fueltank", MakeACF_FuelTank, "Pos", "Angle",
 function ENT:UpdateFuelTank(Id, Data1, Data2)
 
 	local lookup = list.Get("ACFEnts").FuelTanks
-	local Size = self:OBBMaxs() - self:OBBMins() --outer dimensions of tank
-	local Wall = 0.1 --wall thickness in inches
 	local pct = 1 --how full is the tank?
-	local new = self.Capacity == 0 -- is it new or updated?
-	if not new then pct = self.Fuel / self.Capacity end 
-	self.Size = math.floor(Size.x * Size.y * Size.z) -- total volume of tank (cu in)
-	self.Volume = math.floor((Size.x - Wall) * (Size.y - Wall) * (Size.z - Wall)) -- internal volume in cubic inches
-	self.Capacity = self.Volume * ACF.CuIToLiter * ACF.TankVolumeMul * 0.125 --internal volume available for fuel in liters
-	self.EmptyMass = ((self.Size - self.Volume)*16.387)*7.9/1000  -- total wall volume * cu in to cc * density of steel (kg/cc)
+	if self.Capacity and not (self.Capacity == 0) then --if updating existing tank, keep fuel level
+		pct = self.Fuel / self.Capacity
+	end
+	
+	local PhysObj = self:GetPhysicsObject()
+	local Area = PhysObj:GetSurfaceArea()
+	local Wall = 0.03937 --wall thickness in inches (1mm)
+	self.Volume = PhysObj:GetVolume() - (Area * Wall) -- total volume of tank (cu in), reduced by wall thickness
+	self.Capacity = self.Volume * ACF.CuIToLiter * ACF.TankVolumeMul * 0.4774 --internal volume available for fuel in liters, with magic realism number
+	self.EmptyMass = (Area*Wall)*16.387*(7.9/1000)  -- total wall volume * cu in to cc * density of steel (kg/cc)
+	
 	self.FuelType = Data2
 	self.IsExplosive = self.FuelType ~= "Electric" and lookup[Data1].explosive ~= false
 	self.NoLinks = lookup[Data1].nolinks == true
@@ -329,9 +333,13 @@ function ENT:UpdateFuelMass()
 		self.Mass = self.EmptyMass + FuelMass
 	end
 	
-	local phys = self:GetPhysicsObject()  	
-	if (phys:IsValid()) then 
-		phys:SetMass( self.Mass ) 
+	--reduce superflous engine calls, update fuel tank mass every 5 kgs change
+	if math.abs(self.LastMass - self.Mass) > 5 then
+		self.LastMass = self.Mass
+		local phys = self:GetPhysicsObject()  	
+		if (phys:IsValid()) then 
+			phys:SetMass( self.Mass ) 
+		end
 	end
 	
 	self:UpdateOverlayText()
@@ -380,8 +388,6 @@ end
 
 function ENT:Think()
 	
-	self:NextThink( CurTime() +  1 )
-	
 	--make sure it's not invisible to traces
 	if not self:IsSolid() then self.Fuel = 0 end
 	
@@ -390,6 +396,8 @@ function ENT:Think()
 		self.Fuel = math.max(self.Fuel - self.Leaking,0)
 		self.Leaking = math.Clamp(self.Leaking - (1 / math.max(self.Fuel,1))^0.5, 0, self.Fuel) --fuel tanks are self healing
 		Wire_TriggerOutput(self, "Leaking", (self.Leaking > 0) and 1 or 0)
+	else 
+		self:NextThink( CurTime() + 2 )
 	end
 	
 	--refuelling
@@ -399,7 +407,7 @@ function ENT:Think()
 				local dist = self:GetPos():Distance(Tank:GetPos())
 				if dist < ACF.RefillDistance then
 					if Tank.Capacity - Tank.Fuel > 0.1 then
-						local exchange = (CurTime() - self.LastThink) * ACF.RefillSpeed * (((self.FuelType == "Electric") and ACF.ElecRate) or ACF.FuelRate) / 3500
+						local exchange = (CurTime() - self.LastThink) * ACF.RefillSpeed * (((self.FuelType == "Electric") and ACF.ElecRate) or ACF.FuelRate) / 1750 --3500
 						exchange = math.min(exchange, self.Fuel, Tank.Capacity - Tank.Fuel)
 						self.Fuel = self.Fuel - exchange
 						Tank.Fuel = Tank.Fuel + exchange
