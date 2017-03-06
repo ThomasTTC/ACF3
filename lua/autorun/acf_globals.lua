@@ -16,7 +16,7 @@ ACF.GroundtoRHA = 0.15		--How much mm of steel is a mm of ground worth (Real soi
 ACF.KEtoSpall = 2
 ACF.AmmoMod = 0.6		-- Ammo modifier. 1 is 1x the amount of ammo
 ACF.ArmorMod = 1
-ACF.Spalling = 0
+ACF.Spalling = false
 ACF.GunfireEnabled = true
 ACF.MeshCalcEnabled = false
 
